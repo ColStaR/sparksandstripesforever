@@ -5,4 +5,8 @@
 
 # COMMAND ----------
 
+print('hello')
+
+# COMMAND ----------
+
 
