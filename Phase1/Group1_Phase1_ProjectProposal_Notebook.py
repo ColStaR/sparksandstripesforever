@@ -59,17 +59,17 @@
 # MAGIC 
 # MAGIC By exploring these datasets in conjunction with one another, we hope to develop a better understanding of the fields within and their possible relationships to one another. The information on the datasets below is obtained from the dataset documentation provided, as well as preliminary analyses on fields of interest.
 # MAGIC 
-# MAGIC The Airline On-Time Performance Data table contains the scheduled and actual departure/arrival times for U.S. Domestic flights for qualifying airline carriers. These carriers must account for at least one percentage of U.S Domestic scheduled passenger revenues in order to qualify. Our data ranges from 2015 to 2021, for the purposes of this preliminary analysis, we will be examining the data from “/parquet_airlines_data_1y/”  which consists of flight data from 2019. Variables of interest within this dataset include: 
+# MAGIC The Airline On-Time Performance Data table contains the scheduled and actual departure/arrival times for U.S. Domestic flights for qualifying airline carriers. These carriers must account for at least one percentage of U.S Domestic scheduled passenger revenues in order to qualify. Our data ranges from 2015 to 2021, for the purposes of this preliminary analysis, we will be examining the data from “/parquet_airlines_data_3m/”  which consists of flight data from the first quarter of 2015. In this study, canceled flights will be considered with the same regard for customers as delayed flights. Variables of interest within this dataset include: 
 # MAGIC 
-# MAGIC - OriginAirportID - Identifier for the airport for departure
-# MAGIC - DestAirportID - Identifier for the airport of arrival 
-# MAGIC - FlightDate - scheduled flight date 
-# MAGIC - DepDelayMinutes - numerical variable, difference in minutes between scheduled and actual departure time with early departures are set to 0
-# MAGIC - DepDel15 - binary categorical variable that indicates if a flight departure was delayed by more than 15 minutes
-# MAGIC - ArrDelayMinutes -  numerical variable, difference in minutes between scheduled and actual arrival time, early arrivals are set to 0
-# MAGIC - ArrDel15 - binary categorical variable that indicates if a flight arrival was delayed by more than 15 minutes
-# MAGIC - Cancelled - binary categorical variable indicating whether flight was cancelled
-# MAGIC - Diverted - binary categorical variable indicating whether flight was diverted
+# MAGIC - ORIGIN_AIRPORT_ID- Identifier for the airport of departure
+# MAGIC - DEST_AIRPORT_ID- Identifier for the airport of arrival
+# MAGIC - FL_DATE- scheduled flight date 
+# MAGIC - DEP_DELAY_NEW- numerical variable, difference in minutes between scheduled and actual departure time with early departures are set to 0
+# MAGIC - DEP_DEL15- binary categorical variable that indicates if a flight departure was delayed by more than 15 minutes
+# MAGIC - ARR_DELAY_NEW-  numerical variable, difference in minutes between scheduled and actual arrival time, early arrivals are set to 0
+# MAGIC - ARR_DEL15- binary categorical variable that indicates if a flight arrival was delayed by more than 15 minutes
+# MAGIC - CANCELLED- binary categorical variable indicating whether flight was canceled 
+# MAGIC - DIVERTED- binary categorical variable indicating whether flight was diverted
 # MAGIC - CARRIER_DELAY - numerical variable, indicates time spent delayed due to carrier
 # MAGIC - WEATHER_DELAY - numerical variable, indicates time spent delayed due to weather
 # MAGIC - NAS_DELAY - numerical variable, indicates time spent delayed due to National Air System
@@ -77,23 +77,21 @@
 # MAGIC - LATE AIRCRAFT DELAY - numerical variable, indicates time spent delayed due to a late aircraft
 # MAGIC 
 # MAGIC 
-# MAGIC Of these fields, we can see null values within… Mean +Std Dev
+# MAGIC 
 # MAGIC 
 # MAGIC The Quality Controlled Local Climatological Data contains summary data from weather stations housed at airports. These stations log daily temperature highs/lows, precipitation, wind speed, visibility, and storm characteristics. The available data ranges from 2015 to 2021, for the purposes of this preliminary analysis, we will be examining the data from “/parquet_weather_data_1y/”  which consists of weather data from 2019. (expand on variables). Variables of interest within this dataset are any that may have a relationship with flight delays, such as: 
 # MAGIC 
-# MAGIC - WIND-OBSERVATION speed rate - numerical variable, indicates wind speed in meters per second
-# MAGIC - WIND-OBSERVATION speed quality code - categorical variable, scale of 0-9 indicating wind speed quality
-# MAGIC - SKY-CONDTION-OBSERVATION ceiling quality code - categorical variable denoting quality of reported ceiling height dimension
-# MAGIC - VISIBILITY-OBSERVATION distance dimension - numerical variable, distance in meters an object can be seen (max of 16000)
-# MAGIC - VISIBILITY-OBSERVATION distance quality code -categorical variable, field denoting quality of visibility 
-# MAGIC - AIR-TEMPERATURE-OBSERVATION air temperature - numerical variable, temperature of air in celsius
-# MAGIC - AIR-TEMPERATURE-OBSERVATION dew point temperature - numerical variable, temperature in celsius required for water saturation to occur in air 
-# MAGIC - ATMOSPHERIC-PRESSURE-OBSERVATION sea level pressure - numerical variable, air pressure relative to Mean Sea Level in hectopascals
+# MAGIC - HourlyWindSpeed - numerical variable, indicates wind speed in meters per second, 9999’s are considered missing values.
+# MAGIC - HourlySkyConditions  - Height in meters of the lowest cloud or obscuring item (max of 22,000)
+# MAGIC - HourlyVisibility - numerical variable, distance in meters an object can be seen (max of 16000), 999999 is considered missing
+# MAGIC - HourlyDryBulbTemperature - numerical variable, temperature of air in celsius, +9999 is considered missing
+# MAGIC - HourlySeaLevelPressure - numerical variable, air pressure relative to Mean Sea Level in hectopascals, 99999 is considered missing
 # MAGIC 
 # MAGIC The final table, stations_data houses valuable information on airport location including fields such as: 
 # MAGIC - lat - latitude
 # MAGIC - lon - longitude 
 # MAGIC - station_id - identifier for each station
+# MAGIC - Distance_to_neighbor - numeric variable, distance to neighboring station in meters  
 
 # COMMAND ----------
 
