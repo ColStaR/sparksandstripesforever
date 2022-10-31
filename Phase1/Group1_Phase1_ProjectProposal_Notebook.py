@@ -9,6 +9,25 @@
 
 # MAGIC %md
 # MAGIC 
+# MAGIC ## Phase Leader Plan
+# MAGIC 
+# MAGIC Per the instructions, each weekly phase will be led by a different member of the team. Below is a table showing the planned leader for each of the upcoming phases.
+# MAGIC 
+# MAGIC https://docs.google.com/spreadsheets/d/1Va1bwlEmrIrOc1eFo1ySYlPQpt4kZjDqahQABgw0la4/edit#gid=0
+# MAGIC 
+# MAGIC 
+# MAGIC | Phase Number | Phase Leader    |
+# MAGIC | ------------ | --------------- |
+# MAGIC | Phase 1      | Ryan S. Wong    |
+# MAGIC | Phase 2      | Nashat Cabral   |
+# MAGIC | Phase 3      | Deanna Emery    |
+# MAGIC | Phase 4      | Nina Huang      |
+# MAGIC | Phase 5      | Team Submission |
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
 # MAGIC ## Credit Assignment Plan
 # MAGIC ### Phase 1 Contributions
 # MAGIC 
@@ -273,35 +292,6 @@
 
 # MAGIC %md
 # MAGIC 
-# MAGIC ## Conclusions and Next Steps
-# MAGIC 
-# MAGIC Upon reviewing the data and creating the macro solution (project pan), we would like to conclude our phase 1 analysis with the following summary:
-# MAGIC - Problem statement: empowering customers to plan their trip by providing if their flight will be delayed (either a ‘1’ in “ArrDel15” or “DepDel15”) by minimizing false negatives such that the customer can plan for their itinerary after their flight landed
-# MAGIC - Data pipeline: building efficient data pipelines by leveraging partitions with proper resource management techniques to solve the big-data, time-series, machine-learning problem feasible within the given budget (AWS free credit tier for Blob Storage). Key stages of the data pipeline include:
-# MAGIC   - Data format conversion: convert from csv to Parquet
-# MAGIC   - Joining datasets: bring together relevant datasets, which may include (depending on the result of the EDA)  the flight table, weather table, and airport table
-# MAGIC   - Data transformation: all the steps that are involved to prepare data into machine learning model ready format. Example of such steps include cleaning, scaling, rebalancing, feature engineering
-# MAGIC - Model training: train the data using training dataset and evaluate the model on the testing dataset. To avoid overfitting and perform parameter tuning, we will use the Blocked Time Series cross validation technique
-# MAGIC - Model result evaluation: model will be evaluated by balancing the recall and F1 to minimize false negatives while also considering prediction accuracy
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC 
-# MAGIC ## Open Issues or Problems
-# MAGIC 
-# MAGIC As we are working with a big-data time series problem, optimizing computing resources such that running a model is technically feasible and operationally manageable will be a consistent problem. To address these problems, designing solutions to address the following open issues will continue to be focused on our subsequent phases:
-# MAGIC - Missing Data: Among our chosen fields of interest for this project, we have uncovered a large amount of missing data, particularly from the weather dataset. Going forward we will need to handle each of these circumstances with caution as the meaning of missing data may be of significance, or it may be a detriment to any conclusions we attempt to gather from the data.
-# MAGIC - Special period consideration: The data provided covers the Covid Pandemic outbreak (announced by the WHO on Jan 30, 2020). This means we may see segments of special periods with abnormal flight delay results, such as during the start of the pandemic, pandemic recovery, and stabilization after the pandemic. As such, historical data may not be sufficient to train a model that can respond to special periods. Creating a model to predict for these special periods will be a topic of continuous research and exploration
-# MAGIC - Training data time span: In addition to considering special periods, opportunities to further refine/reduce the size of the dataset required to create a machine learning model exists. Methods to refine the dataset include:
-# MAGIC   - Excluding data that may be no longer relevant - for example, does 2015 data help to provide 2021 result in light of the pandemic?
-# MAGIC   - Representing special periods - for example, should cross validation data splits be performed on special period phases?
-# MAGIC   - Parsimonious feature selection - keeping the number of features selected for the model to be lean (e.g no more than 25)
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC 
 # MAGIC ## Team Names and Photos
 # MAGIC 
 # MAGIC Section, Group Number: Section 4, Group 1
@@ -316,25 +306,6 @@
 # MAGIC 
 # MAGIC 
 # MAGIC ![group photo](/files/tables/image/Group_Photo.JPG)
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC 
-# MAGIC ## Phase Leader Plan
-# MAGIC 
-# MAGIC Per the instructions, each weekly phase will be led by a different member of the team. Below is a table showing the planned leader for each of the upcoming phases.
-# MAGIC 
-# MAGIC https://docs.google.com/spreadsheets/d/1Va1bwlEmrIrOc1eFo1ySYlPQpt4kZjDqahQABgw0la4/edit#gid=0
-# MAGIC 
-# MAGIC 
-# MAGIC | Phase Number | Phase Leader    |
-# MAGIC | ------------ | --------------- |
-# MAGIC | Phase 1      | Ryan S. Wong    |
-# MAGIC | Phase 2      | Nashat Cabral   |
-# MAGIC | Phase 3      | Deanna Emery    |
-# MAGIC | Phase 4      | Nina Huang      |
-# MAGIC | Phase 5      | Team Submission |
 
 # COMMAND ----------
 
@@ -378,6 +349,35 @@
 # MAGIC |              | Deanna Emery  | Class Presentation Preparation                                                                                                                                                                                                                    |
 # MAGIC |              | Nina Huang    | Class Presentation Preparation                                                                                                                                                                                                                    |
 # MAGIC |              | Ryan S. Wong  | Class Presentation Preparation                                                                                                                                                                                                                    |
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## Conclusions and Next Steps
+# MAGIC 
+# MAGIC Upon reviewing the data and creating the macro solution (project pan), we would like to conclude our phase 1 analysis with the following summary:
+# MAGIC - Problem statement: empowering customers to plan their trip by providing if their flight will be delayed (either a ‘1’ in “ArrDel15” or “DepDel15”) by minimizing false negatives such that the customer can plan for their itinerary after their flight landed
+# MAGIC - Data pipeline: building efficient data pipelines by leveraging partitions with proper resource management techniques to solve the big-data, time-series, machine-learning problem feasible within the given budget (AWS free credit tier for Blob Storage). Key stages of the data pipeline include:
+# MAGIC   - Data format conversion: convert from csv to Parquet
+# MAGIC   - Joining datasets: bring together relevant datasets, which may include (depending on the result of the EDA)  the flight table, weather table, and airport table
+# MAGIC   - Data transformation: all the steps that are involved to prepare data into machine learning model ready format. Example of such steps include cleaning, scaling, rebalancing, feature engineering
+# MAGIC - Model training: train the data using training dataset and evaluate the model on the testing dataset. To avoid overfitting and perform parameter tuning, we will use the Blocked Time Series cross validation technique
+# MAGIC - Model result evaluation: model will be evaluated by balancing the recall and F1 to minimize false negatives while also considering prediction accuracy
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## Open Issues or Problems
+# MAGIC 
+# MAGIC As we are working with a big-data time series problem, optimizing computing resources such that running a model is technically feasible and operationally manageable will be a consistent problem. To address these problems, designing solutions to address the following open issues will continue to be focused on our subsequent phases:
+# MAGIC - Missing Data: Among our chosen fields of interest for this project, we have uncovered a large amount of missing data, particularly from the weather dataset. Going forward we will need to handle each of these circumstances with caution as the meaning of missing data may be of significance, or it may be a detriment to any conclusions we attempt to gather from the data.
+# MAGIC - Special period consideration: The data provided covers the Covid Pandemic outbreak (announced by the WHO on Jan 30, 2020). This means we may see segments of special periods with abnormal flight delay results, such as during the start of the pandemic, pandemic recovery, and stabilization after the pandemic. As such, historical data may not be sufficient to train a model that can respond to special periods. Creating a model to predict for these special periods will be a topic of continuous research and exploration
+# MAGIC - Training data time span: In addition to considering special periods, opportunities to further refine/reduce the size of the dataset required to create a machine learning model exists. Methods to refine the dataset include:
+# MAGIC   - Excluding data that may be no longer relevant - for example, does 2015 data help to provide 2021 result in light of the pandemic?
+# MAGIC   - Representing special periods - for example, should cross validation data splits be performed on special period phases?
+# MAGIC   - Parsimonious feature selection - keeping the number of features selected for the model to be lean (e.g no more than 25)
 
 # COMMAND ----------
 
