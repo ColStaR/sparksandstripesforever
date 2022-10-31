@@ -75,6 +75,7 @@
 # MAGIC - NAS_DELAY - numerical variable, indicates time spent delayed due to National Air System
 # MAGIC - SECURITY_DELAY - numerical variable, indicates time spent delayed due to security
 # MAGIC - LATE AIRCRAFT DELAY - numerical variable, indicates time spent delayed due to a late aircraft
+# MAGIC - ORIGIN_AIRPORT_ID, DEST_AIRPORT_ID, and FL_DATE will likely be combined to create a composite key as a unique identifer for each scheduled flight.
 # MAGIC 
 # MAGIC The below two figures display summary statistics for our numeric variables, as well as null value counts for our chosen variables.
 # MAGIC ![img1](files/tables/airlinestats.PNG)
@@ -84,11 +85,14 @@
 # MAGIC 
 # MAGIC The Quality Controlled Local Climatological Data contains summary data from weather stations housed at airports. These stations log daily temperature highs/lows, precipitation, wind speed, visibility, and storm characteristics. The available data ranges from 2015 to 2021, for the purposes of this preliminary analysis of the data, we will be examining the data from “/parquet_weather_data_3m/”  which consists of weather data from the first quarter of 2015. (expand on variables). Variables of interest within this dataset are any that may have a relationship with flight delays, such as: 
 # MAGIC 
+# MAGIC - Station - identifier for each station
+# MAGIC - Date - Year-Month-Day-Hour-Minute-Second identifier for the date of a record, the field providing data to the hour allows for the field to identify hourly data.
 # MAGIC - HourlyWindSpeed - numerical variable, indicates wind speed in meters per second, 9999’s are considered missing values.
 # MAGIC - HourlySkyConditions  - Height in meters of the lowest cloud or obscuring item (max of 22,000)
 # MAGIC - HourlyVisibility - numerical variable, distance in meters an object can be seen (max of 16000), 999999 is considered missing
 # MAGIC - HourlyDryBulbTemperature - numerical variable, temperature of air in celsius, +9999 is considered missing
 # MAGIC - HourlySeaLevelPressure - numerical variable, air pressure relative to Mean Sea Level in hectopascals, 99999 is considered missing
+# MAGIC - Station and Date will likely be combined into a composite key as a unique identifier for each weather record.
 # MAGIC 
 # MAGIC The below two figures display summary statistics for our numeric variables, as well as null value counts for our chosen variables.
 # MAGIC 
@@ -100,11 +104,12 @@
 # MAGIC The figure for null values above indicates a large portion of data is missing from our dataset, these values may negatively affect any attempted analyses and will likely need to be filtered out.
 # MAGIC 
 # MAGIC 
-# MAGIC The final table, stations_data houses valuable information on airport location including fields such as: 
+# MAGIC The final table, stations_data, houses valuable information on airport location including fields such as: 
 # MAGIC - lat - latitude
 # MAGIC - lon - longitude 
 # MAGIC - station_id - identifier for each station
 # MAGIC - Distance_to_neighbor - numeric variable, distance to neighboring station in meters  
+# MAGIC - station_id will likely be used as the unique identifier for records within this dataset.
 # MAGIC 
 # MAGIC The below figure displays summary statistics for our numeric variables of Distance_to_neighbor
 # MAGIC 
