@@ -59,7 +59,7 @@
 # MAGIC 
 # MAGIC By exploring these datasets in conjunction with one another, we hope to develop a better understanding of the fields within and their possible relationships to one another. The information on the datasets below is obtained from the dataset documentation provided, as well as preliminary analyses on fields of interest.
 # MAGIC 
-# MAGIC The Airline On-Time Performance Data table contains the scheduled and actual departure/arrival times for U.S. Domestic flights for qualifying airline carriers. These carriers must account for at least one percentage of U.S Domestic scheduled passenger revenues in order to qualify. Our data ranges from 2015 to 2021, for the purposes of this preliminary analysis, we will be examining the data from “/parquet_airlines_data_3m/”  which consists of flight data from the first quarter of 2015. In this study, canceled flights will be considered with the same regard for customers as delayed flights. Variables of interest within this dataset include: 
+# MAGIC The Airline On-Time Performance Data table contains the scheduled and actual departure/arrival times for U.S. Domestic flights for qualifying airline carriers. These carriers must account for at least one percentage of U.S Domestic scheduled passenger revenues in order to qualify. Our data ranges from 2015 to 2021, for the purposes of this preliminary analysis of the data, we will be examining the data from “/parquet_airlines_data_3m/”  which consists of flight data from the first quarter of 2015. In this study, canceled flights will be considered with the same regard for customers as delayed flights. Variables of interest within this dataset include: 
 # MAGIC 
 # MAGIC - ORIGIN_AIRPORT_ID- Identifier for the airport of departure
 # MAGIC - DEST_AIRPORT_ID- Identifier for the airport of arrival
@@ -76,10 +76,13 @@
 # MAGIC - SECURITY_DELAY - numerical variable, indicates time spent delayed due to security
 # MAGIC - LATE AIRCRAFT DELAY - numerical variable, indicates time spent delayed due to a late aircraft
 # MAGIC 
+# MAGIC The below two figures display summary statistics for our numeric variables, as well as null value counts for our chosen variables.
+# MAGIC ![img1](files/tables/airlinestats.PNG)
+# MAGIC ![img2](files/tables/airlinenull.PNG)
 # MAGIC 
+# MAGIC Null values shown above may indicate flights without delays, but will likely need to be removed/modified moving forward.
 # MAGIC 
-# MAGIC 
-# MAGIC The Quality Controlled Local Climatological Data contains summary data from weather stations housed at airports. These stations log daily temperature highs/lows, precipitation, wind speed, visibility, and storm characteristics. The available data ranges from 2015 to 2021, for the purposes of this preliminary analysis, we will be examining the data from “/parquet_weather_data_1y/”  which consists of weather data from 2019. (expand on variables). Variables of interest within this dataset are any that may have a relationship with flight delays, such as: 
+# MAGIC The Quality Controlled Local Climatological Data contains summary data from weather stations housed at airports. These stations log daily temperature highs/lows, precipitation, wind speed, visibility, and storm characteristics. The available data ranges from 2015 to 2021, for the purposes of this preliminary analysis of the data, we will be examining the data from “/parquet_weather_data_3m/”  which consists of weather data from the first quarter of 2015. (expand on variables). Variables of interest within this dataset are any that may have a relationship with flight delays, such as: 
 # MAGIC 
 # MAGIC - HourlyWindSpeed - numerical variable, indicates wind speed in meters per second, 9999’s are considered missing values.
 # MAGIC - HourlySkyConditions  - Height in meters of the lowest cloud or obscuring item (max of 22,000)
@@ -87,11 +90,25 @@
 # MAGIC - HourlyDryBulbTemperature - numerical variable, temperature of air in celsius, +9999 is considered missing
 # MAGIC - HourlySeaLevelPressure - numerical variable, air pressure relative to Mean Sea Level in hectopascals, 99999 is considered missing
 # MAGIC 
+# MAGIC The below two figures display summary statistics for our numeric variables, as well as null value counts for our chosen variables.
+# MAGIC 
+# MAGIC ![img3](files/tables/weatherstats.PNG)
+# MAGIC 
+# MAGIC ![img4](files/tables/weather_null.PNG)
+# MAGIC 
+# MAGIC The statistics table shows the max being 9s, which is likely representative of missing data.
+# MAGIC The figure for null values above indicates a large portion of data is missing from our dataset, these values may negatively affect any attempted analyses and will likely need to be filtered out.
+# MAGIC 
+# MAGIC 
 # MAGIC The final table, stations_data houses valuable information on airport location including fields such as: 
 # MAGIC - lat - latitude
 # MAGIC - lon - longitude 
 # MAGIC - station_id - identifier for each station
 # MAGIC - Distance_to_neighbor - numeric variable, distance to neighboring station in meters  
+# MAGIC 
+# MAGIC The below figure displays summary statistics for our numeric variables of Distance_to_neighbor
+# MAGIC 
+# MAGIC ![img5](files/tables/stationstats.PNG)
 
 # COMMAND ----------
 
@@ -265,6 +282,7 @@
 # MAGIC ## Open Issues or Problems
 # MAGIC 
 # MAGIC As we are working with a big-data time series problem, optimizing computing resources such that running a model is technically feasible and operationally manageable will be a consistent problem. To address these problems, designing solutions to address the following open issues will continue to be focused on our subsequent phases:
+# MAGIC - Missing Data: Among our chosen fields of interest for this project, we have uncovered a large amount of missing data, particularly from the weather dataset. Going forward we will need to handle each of these circumstances with caution as the meaning of missing data may be of significance, or it may be a detriment to any conclusions we attempt to gather from the data.
 # MAGIC - Special period consideration: The data provided covers the Covid Pandemic outbreak (announced by the WHO on Jan 30, 2020). This means we may see segments of special periods with abnormal flight delay results, such as during the start of the pandemic, pandemic recovery, and stabilization after the pandemic. As such, historical data may not be sufficient to train a model that can respond to special periods. Creating a model to predict for these special periods will be a topic of continuous research and exploration
 # MAGIC - Training data time span: In addition to considering special periods, opportunities to further refine/reduce the size of the dataset required to create a machine learning model exists. Methods to refine the dataset include:
 # MAGIC   - Excluding data that may be no longer relevant - for example, does 2015 data help to provide 2021 result in light of the pandemic?
