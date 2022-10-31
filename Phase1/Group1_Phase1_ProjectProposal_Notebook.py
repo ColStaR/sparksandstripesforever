@@ -43,7 +43,7 @@
 # MAGIC 
 # MAGIC ## Project Abstract
 # MAGIC 
-# MAGIC In the flight industry, delays are a key issue for airline companies, airports, and customers. These events account for significant financial and time losses across these groups. This project seeks to predict the occurrence, or lack thereof, a delayed departing flight by using airport, flight, and local weather data to create a machine learning model that can effectively predict flight delays. Any analyses and methods applied will come from the perspective of benefiting the customer, and thus the model would need to place greater emphasis on correctly identifying non-delayed flights, as incorrectly identifying these events would be detrimental to the customer experience. Such a model would be capable of minimizing costs while improving customer satisfaction in their business.
+# MAGIC In the flight industry, delays are a key issue for airline companies, airports, and customers. These events account for significant financial and time losses across these groups. This project seeks to predict the occurrence, or lack thereof, a delayed departing flight by using airport, flight, and local weather data to create a machine learning model that can effectively predict flight delays. Any analyses and methods applied will come from the perspective of benefiting the customer, and thus the model would need to place greater emphasis on correctly identifying non-delayed flights, as incorrectly identifying these events would be detrimental to the customer experience. Such a model would be capable of minimizing costs while improving customer satisfaction in their business. This document outlines the high level plan for approaching this problem.
 
 # COMMAND ----------
 
@@ -159,9 +159,10 @@
 # MAGIC     - Once stored within our cloud storage, we will convert the raw files from their native CSV format into the Parquet file format, as Parquet provides superior storage and computation performance compared to CSV. A copy of this converted raw data in Parque format will then be stored back onto our HDFS instance, which will then be transferred to our DataBricks instance for additional transformations.
 # MAGIC 3. Clean data
 # MAGIC     - As with all raw data, we are expecting the initial data to contain numerous errors, typos, and missing data. To resolve this, the data will be cleaned of erroneous or troublesome values, and properly formatted so that it is fully usable. 
-# MAGIC 4. Transform data: scaling data, rebalancing data, adding features, join data sets, choosing features
+# MAGIC 4. Transform data: outlier handling, scaling data, rebalancing data, adding features, join data sets, choosing features
 # MAGIC     - With the data cleaned, we will then transform the data to be usable for our purposes. 
-# MAGIC     - We will start by applying normalized scaling to features that have a highly variable range of values. Our initial EDA of each feature’s distributions will reveal which features have data ranges that should be normalized.
+# MAGIC     - We will start by handling outliers. Depending on what patterns we observe with features containing outliers, we will implement different treatment techniques such as dropping the record and imputing values. 
+# MAGIC     - Next we will perform data scaling by applying normalized scaling to features that have a highly variable range of values. Our initial EDA of each feature’s distributions will reveal which features have data ranges that should be normalized.
 # MAGIC     - Afterwards, we will balance any features whose distributions are not normally distributed using the Synthetic Minority Oversampling Technique. SMOTE will allow us to artificially rebalance feature distributions, introducing slight noise but greatly increasing our analytical accuracy. An initial EDA will show what features have highly imbalanced distributions that would need to be rebalanced. 
 # MAGIC     - We will also add additional derived features from the data that would be useful for our analysis. Lastly, we will be joining relevant data sets together. More information about joining the data sets can be found in the following section.
 # MAGIC     - In order to reduce storage and computational complexity, we will select the features in our data set that are most relevant to our analysis; all other features will be dropped from our usable data sets. We will be determining what features to keep and which to ignore after an initial EDA assessment of the data sets.
@@ -201,9 +202,10 @@
 # MAGIC 
 # MAGIC ## Machine Learning Algorithms to be Used
 # MAGIC 
-# MAGIC As a benchmark, we can predict that a flight will be delayed if the airlines and airport have had any other delays prior in the day. To create this prediction, we can create an hourly cumulative count of delayed flights for each airline and airport over the course of a day with a lag of 2 (in order to avoid data leakage). We can then convert this shifted cumulative sum to a binary feature of ‘greater than 0’ or ‘equal to 0’. 
+# MAGIC As a basic benchmark, we assume no flights will be deplayed. 
+# MAGIC As time permits, we will develop a more sophisticated benchmark: we can predict that a flight will be delayed if the airlines and airport have had any other delays prior in the day. To create this prediction, we can create an hourly cumulative count of delayed flights for each airline and airport over the course of a day with a lag of 2 (in order to avoid data leakage). We can then convert this shifted cumulative sum to a binary feature of ‘greater than 0’ or ‘equal to 0’. 
 # MAGIC 
-# MAGIC Our goal will be to develop a machine learning algorithm that outperforms our benchmark. We will attempt to implement the following algorithms using PySpark’s MLlib library:
+# MAGIC Our goal will be to develop a machine learning algorithm that outperforms our benchmark. In selecting our machine learning algorithms, we weigh in heavily on their ability to parallelize. For example, while certain models are great candidates for time series （such as LSTM), given that they can not be parallelized we will not consider them for the project. As such, we will attempt to implement the following algorithms using PySpark’s MLlib library:
 # MAGIC 
 # MAGIC - [Logistic Regression](https://spark.apache.org/docs/latest/mllib-linear-methods.html#logistic-regression)
 # MAGIC 
@@ -223,6 +225,8 @@
 # MAGIC 
 # MAGIC   - Random Forest is an ensemble model of decision trees. This ensemble approach helps reduce overfitting, which is a risk for decision tree models. Decision trees use a 0-1 loss function, which is just the proportion of predictions that are incorrect (similar to an accuracy score). 
 # MAGIC   - In a distributed system, we can train each decision tree in parallel. 
+# MAGIC 
+# MAGIC As time permits, we may also explore the multilayer perceptron classifier in MLlib.
 
 # COMMAND ----------
 
@@ -231,7 +235,7 @@
 # MAGIC ## Resource Management and Performance Optimization
 # MAGIC 
 # MAGIC Working with a big data problem over Azure means that extensive computing resources will be required which could cause the project to quickly run over the budget (e.g. free Azure account credit) if resources are not carefully managed. This is even more true with certain time series machine learning models which requires multiple features to be engineered for sliding windows. To avoid unexpected budget increase, the following best practices will be followed throughout the project:
-# MAGIC - Improving speed through memory: cache after major execution (e.g. after every data pipeline milestone including performing join and transforming data into training ready format)  to speed up processing. This can be achieved using the cache operation
+# MAGIC - Improving speed through memory: cache after major execution (e.g. after every data pipeline milestone including performing join and transforming data into training ready format)  to speed up processing. This can be achieved using the cache operation. Cached data will be cleared as the cluster gets destroyed.
 # MAGIC - Improving reliability by persist to disk: Persist or checkpoint to blob storage after major execution for reliability in case of unexpected reader disconnect
 # MAGIC   - Persist after performing data join - do not unpersist 
 # MAGIC   - Optionally unpersist for other milestones along the data pipeline if needed to free up the blob storage for cost minimization 
@@ -250,7 +254,7 @@
 # MAGIC With time series data, data leakage can compromise the model result if data is not split appropriately. In fact, the traditional random splitting approach will not work as it will break the temporal nature of the data. Instead, an 80-20 train-test split will be performed on data that is sorted chronologically such that 80% of the data will be the ‘older’ part of the dataset that makes up the training data vs. the 20% is the ‘newer’ testing dataset. 
 # MAGIC 
 # MAGIC While performing the training/test data set on the full dataset (2015-2021) is desirable, balancing completeness of data with computing resources is required. As such, the following data splitting techniques will be used:
-# MAGIC - Perform EDA on the full dataset to identify unusual temporal patterns for opportunities to exclude data from the problem. Examples of such unusual patterns may be excluding data that covers the period from when the pandemic started to when airport operations stabilized. We assume that operational lessons learned from the Pandemic can be replicated quickly by airports in the event of another unexpected event that could impact the global airline operations
+# MAGIC - Perform EDA on the full dataset to identify unusual temporal patterns for opportunities to exclude data from the problem. Examples of such unusual patterns may be excluding data that covers the period from when the pandemic started to when airport operations stabilized. We assume that operational lessons learned from the Pandemic can be replicated quickly by airports in the event of another unexpected event that could impact the global airline operations and therefore can consider dropping the reactive phase
 # MAGIC - Create mini-model on 2019 data and observe how the model would perform differently as the model expands to include other period:
 # MAGIC   - Initially conduct 80-20 split on 2019 with Jan to mid-Sep as the training data and mid-Spe-Dec as the testing data
 # MAGIC   - Continue to fine tune the data through cross validation by including more data into the model
@@ -262,8 +266,8 @@
 # MAGIC ![Blocking Time Series Split Code](/files/tables/image/BlockingTimeSeriesSplitCode.JPG)
 # MAGIC 
 # MAGIC Each fold from the blocked CV will follow the 80-20 split as discussed above. The number of folds (k) will be decided after conducting EDA to identify opportunities of leaving data out from the problem. 2 approaches for determining the folds will be evaluated after completing EDA:
-# MAGIC Fixed duration: each fold will be approximately the same size 
-# MAGIC Varying duration: each fold will be a specific period that is representative of special events such as optimal operations, disrupted & recovery from disrupted operations, stabilized operations after major disruption 
+# MAGIC 1. Fixed duration: each fold will be approximately the same size 
+# MAGIC 2. Varying duration: each fold will be a specific period that is representative of special events such as optimal operations (e.g. pre-pandemic), disrupted & recovery from disrupted operations (e.g. onset of and recovery from the Pandemic), stabilized operations after major disruption (e.g. the new stabilized operations) 
 
 # COMMAND ----------
 
