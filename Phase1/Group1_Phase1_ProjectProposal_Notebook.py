@@ -4,6 +4,8 @@
 # MAGIC ## Section 4, Group 1
 # MAGIC ## Sparks and Stripes Forever
 # MAGIC Nashat Cabral, Deanna Emery, Nina Huang, Ryan S. Wong
+# MAGIC 
+# MAGIC [DataBricks Notebook Link](https://adb-731998097721284.4.azuredatabricks.net/?o=731998097721284#notebook/364123876153624/command/4295587629775265)
 
 # COMMAND ----------
 
@@ -97,8 +99,10 @@
 # MAGIC - ORIGIN_AIRPORT_ID, DEST_AIRPORT_ID, and FL_DATE will likely be combined to create a composite key as a unique identifer for each scheduled flight.
 # MAGIC 
 # MAGIC The below two figures display summary statistics for our numeric variables, as well as null value counts for our chosen variables.
-# MAGIC ![img1](files/tables/airlinestats.PNG)
-# MAGIC ![img2](files/tables/airlinenull.PNG)
+# MAGIC 
+# MAGIC ![img1](https://raw.githubusercontent.com/ColStaR/sparksandstripesforever/main/Phase1/images/airlinestats.PNG)
+# MAGIC 
+# MAGIC ![img2](https://raw.githubusercontent.com/ColStaR/sparksandstripesforever/main/Phase1/images/airlinenull.PNG)
 # MAGIC 
 # MAGIC Null values shown above may indicate flights without delays, but will likely need to be removed/modified moving forward.
 # MAGIC 
@@ -115,9 +119,9 @@
 # MAGIC 
 # MAGIC The below two figures display summary statistics for our numeric variables, as well as null value counts for our chosen variables.
 # MAGIC 
-# MAGIC ![img3](files/tables/weatherstats.PNG)
+# MAGIC ![img3](https://raw.githubusercontent.com/ColStaR/sparksandstripesforever/main/Phase1/images/weatherstats.PNG)
 # MAGIC 
-# MAGIC ![img4](files/tables/weather_null.PNG)
+# MAGIC ![img4](https://raw.githubusercontent.com/ColStaR/sparksandstripesforever/main/Phase1/images/weather%20null.PNG)
 # MAGIC 
 # MAGIC The statistics table shows the max being 9s, which is likely representative of missing data.
 # MAGIC The figure for null values above indicates a large portion of data is missing from our dataset, these values may negatively affect any attempted analyses and will likely need to be filtered out.
@@ -132,7 +136,7 @@
 # MAGIC 
 # MAGIC The below figure displays summary statistics for our numeric variables of Distance_to_neighbor
 # MAGIC 
-# MAGIC ![img5](files/tables/stationstats.PNG)
+# MAGIC ![img5](https://raw.githubusercontent.com/ColStaR/sparksandstripesforever/main/Phase1/images/stationstats.PNG)
 
 # COMMAND ----------
 
@@ -194,7 +198,7 @@
 # MAGIC 
 # MAGIC Below is a visualization of the pipeline’s components and processes.
 # MAGIC 
-# MAGIC ![pipeline](/files/tables/image/Group1_Phase1_ProjectProposal_PipelineViz-1.jpg)
+# MAGIC ![pipeline](https://raw.githubusercontent.com/ColStaR/sparksandstripesforever/main/Phase1/images/Group1_Phase1_ProjectProposal_PipelineViz-1.jpg)
 
 # COMMAND ----------
 
@@ -280,9 +284,9 @@
 # MAGIC 
 # MAGIC Zooming in on cross validation, we will use the Blocked Time Series split technique. The Blocked Time Series split technique is a variation of the time series split technique that reduces data leakage characterized by adding margins between the training and the testing dataset at each fold and across folds to prevent the model from observing lag values which are used twice. A visual illustration and sample implementation of the blocked time series technique are shown in below ([reference](https://goldinlocks.github.io/Time-Series-Cross-Validation/#:~:text=Blocked%20and%20Time%20Series%20Split,and%20another%20as%20a%20response.)).
 # MAGIC 
-# MAGIC ![Blocking Time Series Split](/files/tables/image/BlockingTimeSeriesSplit.JPG)
+# MAGIC ![Blocking Time Series Split](https://raw.githubusercontent.com/ColStaR/sparksandstripesforever/main/Phase1/images/BlockingTimeSeriesSplit.JPG)
 # MAGIC 
-# MAGIC ![Blocking Time Series Split Code](/files/tables/image/BlockingTimeSeriesSplitCode.JPG)
+# MAGIC ![Blocking Time Series Split Code](https://raw.githubusercontent.com/ColStaR/sparksandstripesforever/main/Phase1/images/BlockingTimeSeriesSplitCode.JPG)
 # MAGIC 
 # MAGIC Each fold from the blocked CV will follow the 80-20 split as discussed above. The number of folds (k) will be decided after conducting EDA to identify opportunities of leaving data out from the problem. 2 approaches for determining the folds will be evaluated after completing EDA:
 # MAGIC 1. Fixed duration: each fold will be approximately the same size 
@@ -305,7 +309,7 @@
 # MAGIC - Ryan S. Wong (ryanswong@berkeley.edu)
 # MAGIC 
 # MAGIC 
-# MAGIC ![group photo](/files/tables/image/Group_Photo.JPG)
+# MAGIC ![group photo](https://raw.githubusercontent.com/ColStaR/sparksandstripesforever/main/Phase1/images/Group_Photo.JPG)
 
 # COMMAND ----------
 
@@ -315,7 +319,7 @@
 # MAGIC 
 # MAGIC The following picture was taken from the GANTT chart that our team is using in the project management program Asana. This chart shows the tasks and schedules for each of the project phases along with major deadlines and milestones.
 # MAGIC 
-# MAGIC ![GANTT Phase Overview](/files/tables/image/PhaseOverview.JPG)
+# MAGIC ![GANTT Phase Overview](https://raw.githubusercontent.com/ColStaR/sparksandstripesforever/main/Phase1/images/PhaseOverview.JPG)
 
 # COMMAND ----------
 
