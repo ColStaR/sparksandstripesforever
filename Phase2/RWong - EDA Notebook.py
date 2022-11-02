@@ -64,14 +64,16 @@ print("**Flight Data Loaded")
 
 # COMMAND ----------
 
-# UDF that converts time values to hour integer.
+# User Defined Function that converts time values to hour integer.
 # Input has string value of hours and minutes smashed together in one string. Need to return just the hour value as int.
 def convertTimeToHours(inputTime):
     return floor(inputTime/ 100)
-    
+
+# Use convertTime with a withColumn function to apply convertTimeToHours to entire spark column efficiently.
 convertTime = udf(lambda q : convertTimeToHours(q), IntegerType())
 
 # COMMAND ----------
+
 
 # DEST_WAC
 df_airlines.describe(["DEST_WAC"]).show()
