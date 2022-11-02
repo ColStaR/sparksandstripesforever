@@ -1,4 +1,21 @@
 # Databricks notebook source
+# MAGIC %md
+# MAGIC 
+# MAGIC EDA Steps:
+# MAGIC 
+# MAGIC Numerical Values:
+# MAGIC - Count # of values, NA's
+# MAGIC - Describe distribution (mean, median, standard deviation, range)
+# MAGIC - Plot distribution
+# MAGIC - Unique Notes
+# MAGIC 
+# MAGIC Categorical Values:
+# MAGIC - Count # of entries, NA's
+# MAGIC - Count # of unique values.
+# MAGIC - Unique Notes
+
+# COMMAND ----------
+
 from pyspark.sql.functions import col
 print("**Loading Data")
 
