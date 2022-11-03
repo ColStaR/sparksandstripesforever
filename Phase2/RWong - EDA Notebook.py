@@ -40,6 +40,7 @@
 from pyspark.sql.functions import col, floor
 from pyspark.sql.functions import isnan, when, count, col
 from pyspark.sql.types import IntegerType
+import pandas as pd
 
 # COMMAND ----------
 
@@ -76,42 +77,175 @@ convertTime = udf(lambda q : convertTimeToHours(q), IntegerType())
 
 
 # DEST_WAC
-df_airlines.describe(["DEST_WAC"]).show()
+display(df_airlines.select("DEST_WAC"))
 df_airlines.select([count(when(col('DEST_WAC').isNull(),True))]).show()
-print("Notes: ")
+
+#Notes: 
+# Categorical data input as integers.
 
 # COMMAND ----------
 
 # CRS_DEP_TIME
 
 #df_airlines.select("CRS_DEP_TIME").withColumn("Hour", convertTimeToHours(col("CRS_DEP_TIME"))).show()
-df_airlines.describe(["CRS_DEP_TIME"]).show()
+display(df_airlines.select("CRS_DEP_TIME"))
 df_airlines.select([count(when(col('CRS_DEP_TIME').isNull(),True))]).show()
-print("Notes: ")
+
+#Notes: 
+# Original scheduled departure time.
+# Original data is in integer data but is meant to be converted to time. Will need to be converted to hour values. 
+# Will also need to account for 12 AM values of 0, since integer drops leading zeroes.")
 
 # COMMAND ----------
 
 #DEP_TIME
-df_airlines.describe(["DEP_TIME"]).show()
+display(df_airlines.select("DEP_TIME"))
 df_airlines.select([count(when(col('DEP_TIME').isNull(),True))]).show()
-print("Notes: ")
+
+#Notes: 
+# Original data is in integer data but is meant to be converted to time. Will need to be converted to hour values. 
+# Will also need to account for 12 AM values of 0, since integer drops leading zeroes.")
+# Null values indicate flight was cancelled.
 
 # COMMAND ----------
 
 #DEP_DELAY_NEW
-df_airlines.describe(["DEP_DELAY_NEW"]).show()
+display(df_airlines.select("DEP_DELAY_NEW"))
 df_airlines.select([count(when(col('DEP_DELAY_NEW').isNull(),True))]).show()
-print("Notes: ")
+
+#Notes: 
+# Original data is in integer data but is meant to be converted to time. Will need to be converted to hour values. 
+# Will also need to account for 12 AM values of 0, since integer drops leading zeroes.")
+# Null value indicates flight was cancelled.
 
 # COMMAND ----------
 
 #DEP_DEL15
-df_airlines.describe(["DEP_DEL15"]).show()
+display(df_airlines.select("DEP_DEL15"))
 df_airlines.select([count(when(col('DEP_DEL15').isNull(),True))]).show()
-print(df_airlines.filter(df_airlines.DEP_DEL15 == 1).count())
-print(df_airlines.filter(df_airlines.DEP_DEL15 == 0).count())
-print(df_airlines.filter(df_airlines.DEP_DEL15 == 1).count() / (df_airlines.filter(df_airlines.DEP_DEL15 == 0).count() + df_airlines.filter(df_airlines.DEP_DEL15 == 1).count()))
-print("Notes: ")
+
+print("% of flights delayed:", df_airlines.filter(df_airlines.DEP_DEL15 == 1).count() / (df_airlines.filter(df_airlines.DEP_DEL15 == 0).count() + df_airlines.filter(df_airlines.DEP_DEL15 == 1).count()))
+
+#Notes: 
+# Boolean feature. 1 = flight was delayed by at least 15 minutes.
+# Null means flight was cancelled
+
+# COMMAND ----------
+
+#DEP_DELAY_GROUP
+display(df_airlines.select("DEP_DELAY_GROUP"))
+df_airlines.select([count(when(col('DEP_DELAY_GROUP').isNull(),True))]).show()
+#Notes: 10.23k entries with negative delay group values.
+
+# COMMAND ----------
+
+#CANCELLED
+display(df_airlines.select("CANCELLED"))
+df_airlines.select([count(when(col('CANCELLED').isNull(),True))]).show()
+print("% of flights cancelled:", df_airlines.filter(df_airlines.CANCELLED == 1).count() / (df_airlines.filter(df_airlines.CANCELLED == 0).count() + df_airlines.filter(df_airlines.CANCELLED == 1).count()))
+print("# of flights delayed_15 and cancelled:", df_airlines.filter((df_airlines.DEP_DEL15 == 1) & (df_airlines.CANCELLED == 1)).count())
+
+# Notes
+# Boolean value. 1 = flight was cancelled.
+# 3% of flights cancelled
+# 1310 flights delayed and then cancelled. Statistically insignificant?
+
+# COMMAND ----------
+
+#CANCELLATION_CODE
+display(df_airlines.select("CANCELLATION_CODE"))
+df_airlines.select([count(when(col('CANCELLATION_CODE').isNull(),True))]).show()
+
+# Notes
+# Majority of cancellation code is B. Weather?
+# Nulls are flights that were not cancelled.
+# Lots of null values due to flight not being cancelled.
+
+# COMMAND ----------
+
+#CRS_ELAPSED_TIME
+display(df_airlines.select("CRS_ELAPSED_TIME"))
+df_airlines.select([count(when(col('CRS_ELAPSED_TIME').isNull(),True))]).show()
+
+# Notes
+# Unknown null value meaning
+
+# COMMAND ----------
+
+#DISTANCE
+display(df_airlines.select("DISTANCE"))
+df_airlines.select([count(when(col('DISTANCE').isNull(),True))]).show()
+
+# Notes
+# Extreme value of 4,983
+
+# COMMAND ----------
+
+#DISTANCE_GROUP
+display(df_airlines.select("DISTANCE_GROUP"))
+df_airlines.select([count(when(col('DISTANCE_GROUP').isNull(),True))]).show()
+
+# Notes
+# Derived from DISTANCE.
+
+# COMMAND ----------
+
+#CARRIER_DELAY
+display(df_airlines.select("CARRIER_DELAY"))
+df_airlines.select([count(when(col('CARRIER_DELAY').isNull(),True))]).show()
+
+# Notes
+# Extreme value of 1,971
+# Loss of missing data. Assumed to be 0 delay value.
+
+# COMMAND ----------
+
+#WEATHER_DELAY
+display(df_airlines.select("WEATHER_DELAY"))
+df_airlines.select([count(when(col('WEATHER_DELAY').isNull(),True))]).show()
+
+# Notes
+# Extreme value of 1,152
+# Lots of Null values. Assumed to be flights without delays, so values of 0.
+
+# COMMAND ----------
+
+#NAS_DELAY
+display(df_airlines.select("NAS_DELAY"))
+df_airlines.select([count(when(col('NAS_DELAY').isNull(),True))]).show()
+
+# Notes
+# Extreme value of 1,101
+# Lots of Null values. Assumed to be flights without delays, so values of 0.
+
+# COMMAND ----------
+
+#SECURITY_DELAY
+display(df_airlines.select("SECURITY_DELAY"))
+df_airlines.select([count(when(col('SECURITY_DELAY').isNull(),True))]).show()
+
+# Notes
+# Extreme value of 241
+# Lots of Null values. Assumed to be flights without delays, so values of 0.
+
+# COMMAND ----------
+
+#LATE_AIRCRAFT_DELAY
+display(df_airlines.select("LATE_AIRCRAFT_DELAY"))
+df_airlines.select([count(when(col('LATE_AIRCRAFT_DELAY').isNull(),True))]).show()
+
+# Notes
+# Extreme value of 1,313
+# Lots of Null values. Assumed to be flights without delays, so values of 0.
+
+# COMMAND ----------
+
+#YEAR
+display(df_airlines.select("YEAR"))
+df_airlines.select([count(when(col('YEAR').isNull(),True))]).show()
+
+# Notes
+# Integer value for year. No surprises here!
 
 # COMMAND ----------
 
