@@ -41,6 +41,9 @@ from pyspark.sql.functions import col, floor
 from pyspark.sql.functions import isnan, when, count, col
 from pyspark.sql.types import IntegerType
 import pandas as pd
+from pyspark.ml.linalg import DenseMatrix, Vectors
+from pyspark.ml.stat import Correlation
+from pyspark.ml.feature import VectorAssembler
 
 # COMMAND ----------
 
@@ -159,6 +162,7 @@ df_airlines.select([count(when(col('CANCELLATION_CODE').isNull(),True))]).show()
 
 # Notes
 # Majority of cancellation code is B. Weather?
+# Delay code: A = Carrier Code, B = Weather, C = National Aviation System, D = Security
 # Nulls are flights that were not cancelled.
 # Lots of null values due to flight not being cancelled.
 
@@ -170,6 +174,7 @@ df_airlines.select([count(when(col('CRS_ELAPSED_TIME').isNull(),True))]).show()
 
 # Notes
 # Unknown null value meaning
+# Correlation between elapsed time and delay? Longer flights more likely to get delayed?
 
 # COMMAND ----------
 
@@ -179,6 +184,8 @@ df_airlines.select([count(when(col('DISTANCE').isNull(),True))]).show()
 
 # Notes
 # Extreme value of 4,983
+# Filter for low flight distance values. 
+# Distance and elapsed time likely highly correlated. Feature engineer to go with just one?
 
 # COMMAND ----------
 
@@ -442,11 +449,25 @@ df_full_airlines_raw.select([count(when(col('YEAR').isNull(),True))]).show()
 
 # COMMAND ----------
 
-
+# MAGIC %md
+# MAGIC 
+# MAGIC # Additional EDA
 
 # COMMAND ----------
 
+# Correlation of features with DEL15
+features = ["DEP_DEL15", "DEST_WAC", "CRS_DEP_TIME", "CRS_ELAPSED_TIME", "DISTANCE"]
 
+for feature in df_airlines.select(features).columns:
+    print(feature, df_airlines.select(features).stat.corr(feature, "DEP_DEL15"))
+
+# COMMAND ----------
+
+# Correlation of features with DEL15 on full data set
+features = ["DEP_DEL15", "DEST_WAC", "CRS_DEP_TIME", "CRS_ELAPSED_TIME", "DISTANCE"]
+
+for feature in df_full_airlines_raw.select(features).columns:
+    print(feature, df_full_airlines_raw.select(features).stat.corr(feature, "DEP_DEL15"))
 
 # COMMAND ----------
 
