@@ -17,23 +17,23 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC - Column<'DEST_WAC'>,
-# MAGIC - Column<'CRS_DEP_TIME'>,
-# MAGIC -  Column<'DEP_TIME'>,
-# MAGIC -  Column<'DEP_DELAY_NEW'>,
-# MAGIC -  Column<'DEP_DEL15'>,
-# MAGIC -  Column<'DEP_DELAY_GROUP'>,
-# MAGIC -  Column<'CANCELLED'>,
-# MAGIC -  Column<'CANCELLATION_CODE'>,
-# MAGIC -  Column<'CRS_ELAPSED_TIME'>,
-# MAGIC -  Column<'DISTANCE'>,
-# MAGIC -  Column<'DISTANCE_GROUP'>,
-# MAGIC -  Column<'CARRIER_DELAY'>,
-# MAGIC -  Column<'WEATHER_DELAY'>,
-# MAGIC -  Column<'NAS_DELAY'>,
-# MAGIC -  Column<'SECURITY_DELAY'>,
-# MAGIC -  Column<'LATE_AIRCRAFT_DELAY'>,
-# MAGIC -  Column<'YEAR'>]
+# MAGIC - Column<'QUARTER'>,
+# MAGIC - Column<'MONTH'>,
+# MAGIC - Column<'DAY_OF_MONTH'>,
+# MAGIC - Column<'DAY_OF_WEEK'>,
+# MAGIC - Column<'FL_DATE'>,
+# MAGIC - Column<'OP_UNIQUE_CARRIER'>,
+# MAGIC - Column<'TAIL_NUM'>,
+# MAGIC - Column<'OP_CARRIER_FL_NUM'>,
+# MAGIC - Column<'ORIGIN_AIRPORT_ID'>,
+# MAGIC - Column<'ORIGIN_AIRPORT_SEQ_ID'>,
+# MAGIC - Column<'ORIGIN'>,
+# MAGIC - Column<'ORIGIN_STATE_ABR'>,
+# MAGIC - Column<'ORIGIN_WAC'>,
+# MAGIC - Column<'DEST_AIRPORT_ID'>,
+# MAGIC - Column<'DEST_AIRPORT_SEQ_ID'>,
+# MAGIC - Column<'DEST'>,
+# MAGIC - Column<'DEST_STATE_ABR'>,
 
 # COMMAND ----------
 
@@ -109,6 +109,18 @@ print("distinct OP_UNIQUE_CARRIER: 13")
 print("distinct tail number: 4420")
 print("distinct OP_CARRIER_FL_NUM: ",df_nh.select("OP_CARRIER_FL_NUM").distinct().count())
 print("distinct ORIGIN_WAC: ",df_nh.select("ORIGIN_WAC").distinct().count())
+
+# COMMAND ----------
+
+# investigate if the following has 1-1 mapping:
+# 1. ORIGIN vs. ORIGIN_AIRPORT_SEQ_ID vs. ORIGIN_AIRPORT_ID has 1 to 1 m
+# 2. DEST vs. DEST_AIRPORT_ID
+print("ORIGIN check, expect 315: ", df_airlines.select("ORIGIN", "ORIGIN_AIRPORT_SEQ_ID","ORIGIN_AIRPORT_ID").distinct().count())
+print("DEST check, expect 315: ", df_airlines.select("DEST", "DEST_AIRPORT_ID").distinct().count())
+
+#from running 3 months of data, we conclude that these columns contain duplicate. 
+# Hypothesis: Only 1 of these set of columns should be selected for joining
+# Next step: run EDA on full dataset to verify hypothesis
 
 # COMMAND ----------
 
@@ -261,6 +273,78 @@ df_airlines.select([count(when(col('LATE_AIRCRAFT_DELAY').isNull(),True))]).show
 # Notes
 # Extreme value of 1,313
 # Lots of Null values. Assumed to be flights without delays, so values of 0.
+
+# COMMAND ----------
+
+# MAGIC %md full set analysis
+
+# COMMAND ----------
+
+# Analyze duplicate columns and unique record ID on the full dataset
+df_full = spark.read.parquet(f"{data_BASE_DIR}parquet_airlines_data/")
+
+# COMMAND ----------
+
+# get the size of the full dataset = 74,177,433
+print("size of the full dataset:", df_full.count())
+
+# get the size of the number of unique records in the dataset 
+print("size of the unique records in the dataset full dataset:", df_full.distinct().count())
+
+# as expected, we are seeing duplicate records again in the full dataset. 
+# as a part of the data pipeline, the first task will be removing duplicate
+
+# COMMAND ----------
+
+# verify record unique id (previously hypothsized)
+# expected: 42,430,592
+# df_full.select("ORIGIN_AIRPORT_ID", "DEST_AIRPORT_ID", "FL_DATE", "OP_CARRIER_FL_NUM", "OP_UNIQUE_CARRIER", "TAIL_NUM") \
+#     .distinct().count() # 42430587
+
+# df_full.select("ORIGIN_AIRPORT_ID", "DEST_AIRPORT_ID", "FL_DATE", "OP_CARRIER_FL_NUM", "OP_UNIQUE_CARRIER") \
+#     .distinct().count() #42430577
+
+df_full.select("ORIGIN_AIRPORT_ID", "DEST_AIRPORT_ID", "FL_DATE", "OP_CARRIER_FL_NUM", "OP_UNIQUE_CARRIER", "DEP_TIME") \
+    .distinct().count() #42430592 
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC Confirming the unique record key is:
+# MAGIC 1. "ORIGIN_AIRPORT_ID", 
+# MAGIC 2. "DEST_AIRPORT_ID", 
+# MAGIC 3. "FL_DATE", 
+# MAGIC 4. "OP_CARRIER_FL_NUM", 
+# MAGIC 5. "OP_UNIQUE_CARRIER", 
+# MAGIC 6. "DEP_TIME"
+
+# COMMAND ----------
+
+# 315 unique counts of ORIGIN and DEST exist in the 3 months data
+# Now let's get a sense of how many we get from the full data
+print("distinct size of ORIGIN: ", df_full.select("ORIGIN").distinct().count())
+print("distinct size of ORIGIN_AIRPORT_SEQ_ID: ", df_full.select("ORIGIN_AIRPORT_SEQ_ID").distinct().count())
+print("distinct size of ORIGIN_AIRPORT_ID: ", df_full.select("ORIGIN_AIRPORT_ID").distinct().count())
+print("distinct size of DEST: ", df_full.select("DEST").distinct().count())
+print("distinct size of DEST_AIRPORT_ID: ", df_full.select("DEST_AIRPORT_ID").distinct().count())
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC It's interesting to note that the number of origin vs. dest numbers no longer equal in the full dataset
+# MAGIC There are more airports of Origin than airports of DEST
+# MAGIC We also see that there are significantly more ORIGIN_AIRPORT_SEQ_ID than there is in ORIGIN
+# MAGIC 
+# MAGIC Next step:  
+# MAGIC 1. Idenfity which airports are missing from DEST but are present in ORIGIN
+# MAGIC 2. Explore more into the ORIGIN_AIRPORT_SEQ_ID
+
+# COMMAND ----------
+
+print("DEST check, expect 386: ", df_full.select("DEST", "DEST_AIRPORT_ID").distinct().count())
+print("ORIGIN check, expect 388: ", df_full.select("ORIGIN", "ORIGIN_AIRPORT_ID").distinct().count())
+
+# Result: confirmed that 1-1 mapping exist for columns within this set
 
 # COMMAND ----------
 
