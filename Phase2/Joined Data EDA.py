@@ -55,7 +55,7 @@ print("**Data Frames Loaded")
 # COMMAND ----------
 
 # Initial Correlation of numerical features with DEL15
-# Decent correlation (corr > abs(0.1)) for ORIGIN_AIRPORT_ID, ORIGIN_AIRPORT_SEQ_ID, DEP_TIME 
+# Decent correlation (corr > abs(0.1)) for DEST_AIRPORT_ID, DEST_AIRPORT_SEQ_ID, DEP_TIME 
 
 df_joined_data_all.printSchema()
 
