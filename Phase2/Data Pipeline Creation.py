@@ -82,21 +82,21 @@ stages = [] # stages in Pipeline
 
 # NOTE: Had to cut out a bunch of features due to the sheer number of NULLS in them, which were causing the entire dataframe to be skipped. Will need to get the Null values either filled or dropped.
 
-#for categoricalCol in categoricalColumns:
-#    # Category Indexing with StringIndexer
-#    stringIndexer = StringIndexer(inputCol=categoricalCol, outputCol=categoricalCol + "Index").setHandleInvalid("skip")
-#    # Use OneHotEncoder to convert categorical variables into binary SparseVectors
-#    encoder = OneHotEncoder(inputCols=[stringIndexer.getOutputCol()], outputCols=[categoricalCol + "classVec"])
+for categoricalCol in categoricalColumns:
+    # Category Indexing with StringIndexer
+    stringIndexer = StringIndexer(inputCol=categoricalCol, outputCol=categoricalCol + "Index").setHandleInvalid("skip")
+    # Use OneHotEncoder to convert categorical variables into binary SparseVectors
+    encoder = OneHotEncoder(inputCols=[stringIndexer.getOutputCol()], outputCols=[categoricalCol + "classVec"])
 #        
-#    # Add stages.  These are not run here, but will run all at once later on.
-#    stages += [stringIndexer, encoder]
+    # Add stages.  These are not run here, but will run all at once later on.
+    stages += [stringIndexer, encoder]
 #    
-#print(stages)
+print(stages)
 
-#CRS_DEP_TIME_stringIdx = StringIndexer(inputCol="CRS_DEP_TIME", outputCol="CRS_DEP_TIME_INDEX").setHandleInvalid("skip")
-#stages += [CRS_DEP_TIME_stringIdx]
-#DEP_HOUR_stringIdx = StringIndexer(inputCol="DEP_HOUR", outputCol="DEP_HOUR_INDEX").setHandleInvalid("skip")
-#stages += [DEP_HOUR_stringIdx]
+CRS_DEP_TIME_stringIdx = StringIndexer(inputCol="CRS_DEP_TIME", outputCol="CRS_DEP_TIME_INDEX").setHandleInvalid("skip")
+stages += [CRS_DEP_TIME_stringIdx]
+DEP_HOUR_stringIdx = StringIndexer(inputCol="DEP_HOUR", outputCol="DEP_HOUR_INDEX").setHandleInvalid("skip")
+stages += [DEP_HOUR_stringIdx]
 
 print(stages)
 
@@ -108,10 +108,11 @@ print(stages)
 # NOTE: Had to cut out a bunch of features due to the sheer number of NULLS in them, which were causing the entire dataframe to be skipped. Will need to get the Null values either filled or dropped.
 
 #Works:
+# Removed: Date, date_hour, neighbor_call
 numericCols = ["QUARTER", "MONTH", "DAY_OF_MONTH", "DAY_OF_WEEK", "OP_CARRIER_FL_NUM", "ORIGIN_AIRPORT_ID", "ORIGIN_AIRPORT_SEQ_ID", "ORIGIN_WAC", "DEST_AIRPORT_ID", "DEST_AIRPORT_SEQ_ID", "DEST_WAC", "DEP_TIME", "CANCELLED", "CRS_ELAPSED_TIME", "DISTANCE", "YEAR", "STATION", "ELEVATION", "SOURCE", "HourlyDewPointTemperature", "HourlyDryBulbTemperature", "HourlyRelativeHumidity", "HourlyVisibility", "HourlyWindSpeed", "distance_to_neighbor"]
 
-#assemblerInputs = [c + "classVec" for c in categoricalColumns] + numericCols
-assemblerInputs = numericCols
+assemblerInputs = [c + "classVec" for c in categoricalColumns] + numericCols
+#assemblerInputs = numericCols
 
 assembler = VectorAssembler(inputCols=assemblerInputs, outputCol="features").setHandleInvalid("skip")
 
@@ -124,9 +125,13 @@ print(stages)
 # Run the pipeline
 partialPipeline = Pipeline().setStages(stages)
 
-pipelineModel = partialPipeline.fit(df_joined_data_3m)
+# Run 3 Month
+#pipelineModel = partialPipeline.fit(df_joined_data_3m)
+#preppedDataDF = pipelineModel.transform(df_joined_data_3m)
 
-preppedDataDF = pipelineModel.transform(df_joined_data_3m)
+# Run Full Time
+pipelineModel = partialPipeline.fit(df_joined_data_all)
+preppedDataDF = pipelineModel.transform(df_joined_data_all)
 
 # COMMAND ----------
 
@@ -221,6 +226,7 @@ paramGrid = (ParamGridBuilder()
 # COMMAND ----------
 
 # Create 5-fold CrossValidator
+# This one takes a few minutes...
 
 cv = CrossValidator(estimator=lr, estimatorParamMaps=paramGrid, evaluator=evaluator, numFolds=5)
 
@@ -275,28 +281,59 @@ display(selected)
 metrics = MulticlassMetrics(predictions.select("DEP_DEL15", "prediction").rdd)
 #display(predictions.select("label", "prediction").rdd.collect())
 
-TP = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 1) & (col("prediction") == 1)).count()
+#TP = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 1) & (col("prediction") == 1)).count()
 #print(TP)
-TN = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 0) & (col("prediction") == 0)).count()
+#TN = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 0) & (col("prediction") == 0)).count()
 #print(TN)
-FP = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 1) & (col("prediction") == 0)).count()
+#FP = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 1) & (col("prediction") == 0)).count()
 #print(FP)
-FN = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 0) & (col("prediction") == 1)).count()
+#FN = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 0) & (col("prediction") == 1)).count()
 #print(FN)
 
-precision = TP / (TP + FP)
-recall = TP / (TP + FN)
-accuracy = (TN + TP) / (TN + TP + FP + FN)
+#precision = TP / (TP + FP)
+#recall = TP / (TP + FN)
+#accuracy = (TN + TP) / (TN + TP + FP + FN)
 
-print("Manual Precision: ", precision)
-print("Manual Recall: ", recall)
-print("Manual Accuracy: ", accuracy)
+#print("Manual Precision: ", precision)
+#print("Manual Recall: ", recall)
+#print("Manual Accuracy: ", accuracy)
 
 # Computed using MulticlassMetrics
-print("Summary Stats")
+
+print("categoricalColumns =", categoricalColumns)
+print("numericalCols =", numericCols)
 print("Precision = %s" % metrics.precision(1))
 print("Recall = %s" % metrics.recall(1))
 print("Accuracy = %s" % metrics.accuracy)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ### Saved Results
+# MAGIC #### 3 Months
+# MAGIC 
+# MAGIC 11/6/22: V1 Numerical values only:
+# MAGIC numericCols = ["QUARTER", "MONTH", "DAY_OF_MONTH", "DAY_OF_WEEK", "OP_CARRIER_FL_NUM", "ORIGIN_AIRPORT_ID", "ORIGIN_AIRPORT_SEQ_ID", "ORIGIN_WAC", "DEST_AIRPORT_ID", "DEST_AIRPORT_SEQ_ID", "DEST_WAC", "DEP_TIME", "CANCELLED", "CRS_ELAPSED_TIME", "DISTANCE", "YEAR", "STATION", "ELEVATION", "SOURCE", "HourlyDewPointTemperature", "HourlyDryBulbTemperature", "HourlyRelativeHumidity", "HourlyVisibility", "HourlyWindSpeed", "distance_to_neighbor"]
+# MAGIC Precision = 0.04726737410292584
+# MAGIC Recall = 0.6066761139977956
+# MAGIC Accuracy = 0.7976539367365639
+# MAGIC 
+# MAGIC 11/7/22: V1 Categorical + V1 Numeric. CRS_DEP_TIME_stringIdx and DEP_TIME were not indexed.
+# MAGIC categoricalColumns = ['ORIGIN', 'OP_UNIQUE_CARRIER', 'TAIL_NUM', 'ORIGIN_STATE_ABR', 'DEST_STATE_ABR']
+# MAGIC numericalCols = ['QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_ID', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_WAC', 'DEST_AIRPORT_ID', 'DEST_AIRPORT_SEQ_ID', 'DEST_WAC', 'DEP_TIME', 'CANCELLED', 'CRS_ELAPSED_TIME', 'DISTANCE', 'YEAR', 'STATION', 'DATE', 'ELEVATION', 'SOURCE', 'HourlyDewPointTemperature', 'HourlyDryBulbTemperature', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'DATE_HOUR', 'distance_to_neighbor', 'neighbor_call']
+# MAGIC Precision = 0.10488814633726859
+# MAGIC Recall = 0.5929578442947427
+# MAGIC Accuracy = 0.800846964537787
+# MAGIC 
+# MAGIC 11/7/2022: V1 Categorical + V1 Numeric with string indexed categoricals.
+# MAGIC categoricalColumns = ['ORIGIN', 'OP_UNIQUE_CARRIER', 'TAIL_NUM', 'ORIGIN_STATE_ABR', 'DEST_STATE_ABR']
+# MAGIC numericalCols = ['QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_ID', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_WAC', 'DEST_AIRPORT_ID', 'DEST_AIRPORT_SEQ_ID', 'DEST_WAC', 'DEP_TIME', 'CANCELLED', 'CRS_ELAPSED_TIME', 'DISTANCE', 'YEAR', 'STATION', 'ELEVATION', 'SOURCE', 'HourlyDewPointTemperature', 'HourlyDryBulbTemperature', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'distance_to_neighbor']
+# MAGIC Precision = 0.10630601910320389
+# MAGIC Recall = 0.5898360432682496
+# MAGIC Accuracy = 0.8004823858378799
+# MAGIC 
+# MAGIC #### Total Time
 
 # COMMAND ----------
 
@@ -328,6 +365,24 @@ df2 = df_joined_data_3m.select([count(when(col(c).contains('None') | \
                            )).alias(c)
                     for c in numericCols])
 display(df2)
+
+# COMMAND ----------
+
+#["ORIGIN", "OP_UNIQUE_CARRIER", "TAIL_NUM", "ORIGIN_STATE_ABR", "DEST_STATE_ABR"]
+
+df2 = df_joined_data_3m.select([count(when(col(c).contains('None') | \
+                            col(c).contains('NULL') | \
+                            (col(c) == '' ) | \
+                            col(c).isNull() | \
+                            isnan(c), c 
+                           )).alias(c)
+                    for c in categoricalColumns])
+display(df2)
+
+
+# COMMAND ----------
+
+display(df_joined_data_3m.filter(col("TAIL_NUM").isNull()))
 
 # COMMAND ----------
 
