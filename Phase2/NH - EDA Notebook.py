@@ -99,14 +99,15 @@ display(df_nh)
 
 # COMMAND ----------
 
-# 316 unique airports (ORIGIN and DEST)
-# 13 diff. carriers
-# 4420 tail numbers
-print("distinct ORIGIN and DEST: 316 from display, ", df_nh.select("ORIGIN").distinct().count(), " from count")
+# Display summary stats for ID fields
+print("distinct ORIGIN: ", df_nh.select("ORIGIN").distinct().count())
+print("distinct ORIGIN_AIRPORT_ID: ", df_nh.select("ORIGIN_AIRPORT_ID").distinct().count())
 print("distinct ORIGIN_AIRPORT_SEQ_ID: ",df_nh.select("ORIGIN_AIRPORT_SEQ_ID").distinct().count())
-print("distinct airports of DEST_AIRPORT_ID: ",df_nh.select("DEST_AIRPORT_ID").distinct().count())
-print("distinct OP_UNIQUE_CARRIER: 13")
-print("distinct tail number: 4420")
+print("distinct DEST: ",df_nh.select("DEST").distinct().count())
+print("distinct DEST_AIRPORT_ID: ",df_nh.select("DEST_AIRPORT_ID").distinct().count())
+print("distinct DEST_AIRPORT_SEQ_ID: ",df_nh.select("DEST_AIRPORT_SEQ_ID").distinct().count())
+print("distinct OP_UNIQUE_CARRIER: ",df_nh.select("OP_UNIQUE_CARRIER").distinct().count())
+print("distinct tail number: ", df_nh.select("TAIL_NUM").distinct().count())
 print("distinct OP_CARRIER_FL_NUM: ",df_nh.select("OP_CARRIER_FL_NUM").distinct().count())
 print("distinct ORIGIN_WAC: ",df_nh.select("ORIGIN_WAC").distinct().count())
 
@@ -304,8 +305,24 @@ print("size of the unique records in the dataset full dataset:", df_full.distinc
 # df_full.select("ORIGIN_AIRPORT_ID", "DEST_AIRPORT_ID", "FL_DATE", "OP_CARRIER_FL_NUM", "OP_UNIQUE_CARRIER") \
 #     .distinct().count() #42430577
 
-df_full.select("ORIGIN_AIRPORT_ID", "DEST_AIRPORT_ID", "FL_DATE", "OP_CARRIER_FL_NUM", "OP_UNIQUE_CARRIER", "DEP_TIME") \
-    .distinct().count() #42430592 
+# df_full.select("ORIGIN_AIRPORT_SEQ_ID", "DEST_AIRPORT_SEQ_ID", "FL_DATE", "OP_CARRIER_FL_NUM", "OP_UNIQUE_CARRIER") \
+#     .distinct().count() #42430577
+
+# df_full.select("ORIGIN_AIRPORT_ID", "DEST_AIRPORT_ID", "FL_DATE", "OP_CARRIER_FL_NUM", "OP_UNIQUE_CARRIER", "DEP_TIME") \
+#     .distinct().count() #42430592 
+
+df_full.select("ORIGIN_AIRPORT_SEQ_ID", "DEST_AIRPORT_SEQ_ID", "FL_DATE", "OP_CARRIER_FL_NUM", "OP_UNIQUE_CARRIER", "DEP_TIME") \
+    .distinct().count() #42430592
+
+
+
+# COMMAND ----------
+
+# df_full.select("ORIGIN_AIRPORT_ID", "DEST_AIRPORT_ID", "FL_DATE", "OP_CARRIER_FL_NUM", "OP_UNIQUE_CARRIER", "CRS_DEP_TIME") \
+#     .distinct().count() # 42430581
+
+# df_full.select("ORIGIN_AIRPORT_ID", "DEST_AIRPORT_ID", "FL_DATE", "OP_CARRIER_FL_NUM", "OP_UNIQUE_CARRIER", "CRS_DEP_TIME", "TAIL_NUM") \
+#     .distinct().count() # 42430589
 
 # COMMAND ----------
 
@@ -345,6 +362,14 @@ print("DEST check, expect 386: ", df_full.select("DEST", "DEST_AIRPORT_ID").dist
 print("ORIGIN check, expect 388: ", df_full.select("ORIGIN", "ORIGIN_AIRPORT_ID").distinct().count())
 
 # Result: confirmed that 1-1 mapping exist for columns within this set
+
+# COMMAND ----------
+
+df_full.filter(col("DEST_AIRPORT_ID") == col("DEST_AIRPORT_SEQ_ID")/100).count()
+
+# COMMAND ----------
+
+df_full.take(1)
 
 # COMMAND ----------
 
