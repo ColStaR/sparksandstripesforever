@@ -284,6 +284,11 @@ print("Accuracy = %s" % metrics.accuracy)
 # MAGIC Precision = 0.03550097100701333
 # MAGIC Recall = 0.5323700456294176
 # MAGIC Accuracy = 0.8167548729588924
+# MAGIC 
+# MAGIC Percentage 70-30 split
+# MAGIC Precision = 0.03555337944803945
+# MAGIC Recall = 0.5082754984010343
+# MAGIC Accuracy = 0.8156185988403839
 
 # COMMAND ----------
 
