@@ -26,6 +26,7 @@ from pyspark.ml.tuning import ParamGridBuilder, CrossValidator
 from pyspark.mllib.evaluation import MulticlassMetrics
 import pyspark.sql.functions as F
 from pyspark.sql.window import Window
+from pyspark.sql.functions import percent_rank
 
 from sklearn.utils import parallel_backend
 from sklearn.model_selection import cross_val_score
@@ -169,7 +170,11 @@ display(lrModel, preppedDataDF)
 
 # COMMAND ----------
 
-selectedcols = ["DEP_DEL15", "features"]
+preppedDataDF = preppedDataDF.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
+
+display(preppedDataDF)
+
+selectedcols = ["DEP_DEL15", "QUARTER", "DEP_DATETIME_LAG_percent", "features"]
 
 dataset = preppedDataDF.select(selectedcols)
 
@@ -177,7 +182,14 @@ display(dataset)
 
 # COMMAND ----------
 
-(trainingData, testData) = dataset.randomSplit([0.7, 0.3], seed=100)
+#(trainingData, testData) = dataset.randomSplit([0.7, 0.3], seed=100)
+
+# Training set of last thirty %.
+trainingData = dataset.filter(col("DEP_DATETIME_LAG_percent") <= .70)
+testData = dataset.filter(col("DEP_DATETIME_LAG_percent") > .70)
+
+#trainingData = dataset.filter(col("QUARTER") != 4)
+#testData = dataset.filter(col("QUARTER") == 4)
 
 print(trainingData.count())
 
@@ -216,6 +228,65 @@ display(selected)
 
 # COMMAND ----------
 
+metrics = MulticlassMetrics(predictions.select("DEP_DEL15", "prediction").rdd)
+#display(predictions.select("label", "prediction").rdd.collect())
+
+#TP = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 1) & (col("prediction") == 1)).count()
+#print(TP)
+#TN = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 0) & (col("prediction") == 0)).count()
+#print(TN)
+#FP = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 1) & (col("prediction") == 0)).count()
+#print(FP)
+#FN = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 0) & (col("prediction") == 1)).count()
+#print(FN)
+
+#precision = TP / (TP + FP)
+#recall = TP / (TP + FN)
+#accuracy = (TN + TP) / (TN + TP + FP + FN)
+
+#print("Manual Precision: ", precision)
+#print("Manual Recall: ", recall)
+#print("Manual Accuracy: ", accuracy)
+
+# Computed using MulticlassMetrics
+
+print("categoricalColumns =", categoricalColumns)
+print("numericalCols =", numericCols)
+print("Precision = %s" % metrics.precision(1))
+print("Recall = %s" % metrics.recall(1))
+print("Accuracy = %s" % metrics.accuracy)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC Q1
+# MAGIC Precision = 0.07003872958426485
+# MAGIC Recall = 0.45641040924692405
+# MAGIC Accuracy = 0.814425909697851
+# MAGIC 
+# MAGIC Q2
+# MAGIC Precision = 0.03032155640150807
+# MAGIC Recall = 0.5658141975158008
+# MAGIC Accuracy = 0.8038745782767331
+# MAGIC 
+# MAGIC Q3
+# MAGIC Precision = 0.02091388482728226
+# MAGIC Recall = 0.5310050617054054
+# MAGIC Accuracy = 0.8096329067055504
+# MAGIC 
+# MAGIC Q4
+# MAGIC Precision = 0.0406422206027131
+# MAGIC Recall = 0.4440021300927987
+# MAGIC Accuracy = 0.833388332991123
+# MAGIC 
+# MAGIC Standard random 70-30 split
+# MAGIC Precision = 0.03550097100701333
+# MAGIC Recall = 0.5323700456294176
+# MAGIC Accuracy = 0.8167548729588924
+
+# COMMAND ----------
+
 # Evaluate model
 
 evaluator = BinaryClassificationEvaluator(labelCol = "DEP_DEL15")
@@ -245,7 +316,7 @@ paramGrid = (ParamGridBuilder()
 # Create 5-fold CrossValidator
 # This one takes a few minutes...
 
-cv = CrossValidator(estimator=lr, estimatorParamMaps=paramGrid, evaluator=evaluator, numFolds=5)
+cv = CrossValidator(estimator=lr, estimatorParamMaps=paramGrid, evaluator=evaluator, numFolds=2)
 
 # Run cross validations
 
