@@ -280,6 +280,11 @@ print("Accuracy = %s" % metrics.accuracy)
 # MAGIC Recall = 0.4440021300927987
 # MAGIC Accuracy = 0.833388332991123
 # MAGIC 
+# MAGIC Q1-4 Averages:
+# MAGIC Precision = 0.04045
+# MAGIC Recall = 0.4993
+# MAGIC Accuracy = 0.815275
+# MAGIC 
 # MAGIC Standard random 70-30 split
 # MAGIC Precision = 0.03550097100701333
 # MAGIC Recall = 0.5323700456294176
@@ -511,6 +516,16 @@ with parallel_backend('spark', n_jobs=3):
 
 df_basket1 = df_joined_data_3m.select("HourlyDewPointTemperature", "HourlyDryBulbTemperature", F.percent_rank().over(Window.partitionBy().orderBy(df_joined_data_3m['HourlyDryBulbTemperature'])).alias("percent_rank"))
 display(df_basket1)
+
+# COMMAND ----------
+
+data_BASE_DIR = "dbfs:/mnt/mids-w261/"
+display(dbutils.fs.ls(f"{data_BASE_DIR}datasets_final_project_2022/"))
+
+# COMMAND ----------
+
+df_test = spark.read.parquet(f"{data_BASE_DIR}datasets_final_project_2022/parquet_airlines_data/")
+display(df_test.filter(col("YEAR") == 2021))
 
 # COMMAND ----------
 

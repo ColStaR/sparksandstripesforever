@@ -61,7 +61,11 @@ display(dbutils.fs.ls(f"{data_BASE_DIR}stations_data/"))
 
 print("**Data Loaded")
 
-df_airlines_raw = spark.read.parquet(f"{data_BASE_DIR}parquet_airlines_data_3m/")
+#df_airlines_raw = spark.read.parquet(f"{data_BASE_DIR}parquet_airlines_data_3m/")
+#df_airlines = df_airlines_raw.distinct()
+#display(df_airlines)
+
+df_airlines_raw = spark.read.parquet(f"{data_BASE_DIR}parquet_airlines_data/")
 df_airlines = df_airlines_raw.distinct()
 display(df_airlines)
 
@@ -468,6 +472,78 @@ features = ["DEP_DEL15", "DEST_WAC", "CRS_DEP_TIME", "CRS_ELAPSED_TIME", "DISTAN
 
 for feature in df_full_airlines_raw.select(features).columns:
     print(feature, df_full_airlines_raw.select(features).stat.corr(feature, "DEP_DEL15"))
+
+# COMMAND ----------
+
+df_airlines_columns = ["QUARTER", "MONTH", "DAY_OF_MONTH", "DAY_OF_WEEK", "FL_DATE", "OP_UNIQUE_CARRIER", "TAIL_NUM", "OP_CARRIER_FL_NUM", "ORIGIN_AIRPORT_ID", "ORIGIN_AIRPORT_SEQ_ID", "ORIGIN", "ORIGIN_STATE_ABR", "ORIGIN_WAC", "DEST_AIRPORT_ID", "DEST_AIRPORT_SEQ_ID", "DEST_STATE_ABR", "DEST_WAC", "CRS_DEP_TIME", "DEP_TIME", "DEP_DEL15", "CANCELLED", "CANCELLATION_CODE", "CRS_ELAPSED_TIME", "DISTANCE", "YEAR"]
+
+df_airlines_null_counts = df_airlines.select([count(when(col(c).contains('None') | \
+                            col(c).contains('NULL') | \
+                            (col(c) == '' ) | \
+                            col(c).isNull() | \
+                            isnan(c), c 
+                           )).alias(c)
+                    for c in df_airlines_columns])
+display(df_airlines_null_counts)
+
+# COMMAND ----------
+
+df_airlines_null_percentage = df_airlines_null_counts / df_airlines.count()
+display(df_airlines_null_percentage)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC # Joined Data EDA
+
+# COMMAND ----------
+
+# Azure Storage Container info
+from pyspark.sql.functions import col, max
+
+blob_container = "sasfcontainer" # The name of your container created in https://portal.azure.com
+storage_account = "sasfstorage" # The name of your Storage account created in https://portal.azure.com
+secret_scope = "sasfscope" # The name of the scope created in your local computer using the Databricks CLI
+secret_key = "sasfkey" # The name of the secret key created in your local computer using the Databricks CLI 
+blob_url = f"wasbs://{blob_container}@{storage_account}.blob.core.windows.net"
+mount_path = "/mnt/mids-w261"
+
+# SAS Token login
+spark.conf.set(
+  f"fs.azure.sas.{blob_container}.{storage_account}.blob.core.windows.net",
+  dbutils.secrets.get(scope = secret_scope, key = secret_key)
+)
+
+# Load Dataframes
+print("**Loading Data")
+
+# Inspect the Joined Data folders 
+display(dbutils.fs.ls(f"{blob_url}"))
+
+print("**Data Loaded")
+print("**Loading Data Frames")
+
+df_joined_data_3m = spark.read.parquet(f"{blob_url}/joined_data_3m")
+display(df_joined_data_3m)
+
+df_joined_data_all = spark.read.parquet(f"{blob_url}/joined_data_all")
+display(df_joined_data_all)
+
+print("**Data Frames Loaded")
+
+# COMMAND ----------
+
+all_cols_except_timestamp = ['ORIGIN', 'QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'FL_DATE', 'OP_UNIQUE_CARRIER', 'TAIL_NUM', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_ID', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_STATE_ABR', 'ORIGIN_WAC', 'DEST_AIRPORT_ID', 'DEST_AIRPORT_SEQ_ID', 'DEST_STATE_ABR', 'DEST_WAC', 'CRS_DEP_TIME', 'DEP_TIME', 'DEP_DEL15', 'CANCELLED', 'CANCELLATION_CODE', 'CRS_ELAPSED_TIME', 'DISTANCE', 'YEAR', 'DEP_HOUR', 'DEP_DATETIME', 'STATION', 'DATE', 'ELEVATION', 'SOURCE', 'HourlyDewPointTemperature', 'HourlyDryBulbTemperature', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'DATE_HOUR', 'distance_to_neighbor', 'neighbor_call']
+
+df2 = df_joined_data_all.select([count(when(col(c).contains('None') | \
+                            col(c).contains('NULL') | \
+                            (col(c) == '' ) | \
+                            col(c).isNull() | \
+                            isnan(c), c 
+                           )).alias(c)
+                    for c in all_cols_except_timestamp])
+display(df2)
 
 # COMMAND ----------
 
