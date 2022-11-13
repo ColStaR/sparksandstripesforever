@@ -64,7 +64,9 @@
 # MAGIC 
 # MAGIC ## Project Abstract
 # MAGIC 
-# MAGIC In the flight industry, delays are a key issue for airline companies, airports, and customers. These events account for significant financial and time losses across these groups. This project seeks to predict the occurrence, or lack thereof, a delayed departing flight by using airport, flight, and local weather data to create a machine learning model that can effectively predict flight delays. Any analyses and methods applied will come from the perspective of benefiting the customer, and thus the model would need to place greater emphasis on correctly identifying non-delayed flights, as incorrectly identifying these events would be detrimental to the customer experience. Such a model would be capable of minimizing costs while improving customer satisfaction in their business. This document outlines the high level plan for approaching this problem.
+# MAGIC In the flight industry, delays are a key issue for airline companies, airports, and customers. This project focuses on empowering customers to plan their itineary by predicting if their flight will be delayed 2 hours before their planned departure time. 
+# MAGIC Our customer-focused objective would be achieved through minimizing false negatives by running machine models against airport, flight, and local weather data. Any analyses and methods applied will come from the perspective of benefiting the customer, and thus we choose a weighted combintaion of recall and F1 as our metrics (incorrectly identifying a false negative delay would be detrimental to the customer experience). Furthermore, we would evaluate the performance of our model against our prediction baseline, which assumes that no flight is delayed. 
+# MAGIC This document outlines the high level plan for approaching this problem.
 
 # COMMAND ----------
 
