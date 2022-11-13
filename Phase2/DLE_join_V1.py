@@ -1,4 +1,26 @@
 # Databricks notebook source
+data_size = '_3m'
+
+# COMMAND ----------
+
+from pyspark.sql.functions import col, max
+
+blob_container = "sasfcontainer" # The name of your container created in https://portal.azure.com
+storage_account = "sasfstorage" # The name of your Storage account created in https://portal.azure.com
+secret_scope = "sasfscope" # The name of the scope created in your local computer using the Databricks CLI
+secret_key = "sasfkey" # The name of the secret key created in your local computer using the Databricks CLI 
+blob_url = f"wasbs://{blob_container}@{storage_account}.blob.core.windows.net"
+mount_path = "/mnt/mids-w261"
+
+# COMMAND ----------
+
+spark.conf.set(
+  f"fs.azure.sas.{blob_container}.{storage_account}.blob.core.windows.net",
+  dbutils.secrets.get(scope = secret_scope, key = secret_key)
+)
+
+# COMMAND ----------
+
 import pyspark.sql.functions as F
 from pyspark.sql.functions import concat, col, lit, substring, avg
 from pyspark.sql.types import StringType,BooleanType,DateType
@@ -21,7 +43,7 @@ print("**Data Loaded")
 # COMMAND ----------
 
 # Load 2015 Q1 for Flights        dbfs:/mnt/mids-w261/datasets_final_project_2022/parquet_airlines_data_3m/
-df_airlines = spark.read.parquet(f"{data_BASE_DIR}parquet_airlines_data/").distinct()\
+df_airlines = spark.read.parquet(f"{data_BASE_DIR}parquet_airlines_data{data_size}/").distinct()\
                         .select('QUARTER','MONTH','DAY_OF_MONTH','DAY_OF_WEEK','FL_DATE','OP_UNIQUE_CARRIER','TAIL_NUM','OP_CARRIER_FL_NUM',
                                 'ORIGIN_AIRPORT_ID','ORIGIN_AIRPORT_SEQ_ID','ORIGIN','ORIGIN_STATE_ABR','ORIGIN_WAC',
                                 'DEST_AIRPORT_ID','DEST_AIRPORT_SEQ_ID','DEST_STATE_ABR','DEST_WAC','CRS_DEP_TIME',
@@ -76,9 +98,15 @@ stations_list = airport_stations.select('STATION').distinct().toPandas()['STATIO
 # COMMAND ----------
 
 # Load the 2015 Q1 for Weather .filter(col('DATE') < "2015-04-01T00:00:00.000")
-df_weather = spark.read.parquet(f"{data_BASE_DIR}parquet_weather_data/") \
-                       .select('STATION','DATE','ELEVATION','SOURCE','HourlyDewPointTemperature','HourlyDryBulbTemperature',
-                           'HourlyRelativeHumidity', 'HourlyVisibility','HourlyWindSpeed')\
+df_weather = spark.read.parquet(f"{data_BASE_DIR}parquet_weather_data{data_size}/") \
+                       .select('STATION','DATE','ELEVATION','SOURCE', 'HourlyAltimeterSetting',
+                               'HourlyDewPointTemperature', 'HourlyWetBulbTemperature','HourlyDryBulbTemperature', 
+                               'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 
+                               'HourlyPressureChange','HourlyRelativeHumidity', 
+                               'HourlyVisibility','HourlyWindSpeed','HourlyWindGustSpeed',
+                               'MonthlyMeanTemperature', 'MonthlyMaximumTemperature', 'MonthlyGreatestSnowDepth',
+                               'MonthlyGreatestSnowfall', 'MonthlyTotalSnowfall', 'MonthlyTotalLiquidPrecipitation',
+                               'MonthlyMinimumTemperature')\
                        .filter(col("STATION").isin(stations_list) ) \
                        .withColumn("DATE_HOUR", expr("substring(DATE, 0, 13)") ) \
                        .withColumn("DEP_DATETIME_LAG", to_timestamp(col("DATE_HOUR")) + expr("INTERVAL 1 HOURS"))
@@ -113,29 +141,43 @@ display(df_final)
 
 # MAGIC %md
 # MAGIC 
+# MAGIC ## Convert time to UTC
+
+# COMMAND ----------
+
+# Datasource: https://github.com/lxndrblz/Airports
+timezones = spark.read.csv(f"{blob_url}/airport_timezones.txt", header=True).select("code","time_zone_id").withColumnRenamed("code",'ORIGIN')
+
+df_final = df_final.join(timezones, ['ORIGIN'])
+
+# COMMAND ----------
+
+df_final = df_final.withColumn("UTC_DEP_DATETIME_LAG", F.to_utc_timestamp(col("DEP_DATETIME_LAG"), col("time_zone_id")))
+df_final = df_final.withColumn("UTC_DEP_DATETIME", F.to_utc_timestamp(col("DEP_DATETIME"), col("time_zone_id")))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## Clean Nulls in Delay classification column
+
+# COMMAND ----------
+
+df_final = df_final.fillna(1, ['DEP_DEL15'])
+
+# COMMAND ----------
+
+df_final.select('ORIGIN').count()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
 # MAGIC Saving to blob storage
 
 # COMMAND ----------
 
-from pyspark.sql.functions import col, max
-
-blob_container = "sasfcontainer" # The name of your container created in https://portal.azure.com
-storage_account = "sasfstorage" # The name of your Storage account created in https://portal.azure.com
-secret_scope = "sasfscope" # The name of the scope created in your local computer using the Databricks CLI
-secret_key = "sasfkey" # The name of the secret key created in your local computer using the Databricks CLI 
-blob_url = f"wasbs://{blob_container}@{storage_account}.blob.core.windows.net"
-mount_path = "/mnt/mids-w261"
-
-# COMMAND ----------
-
-spark.conf.set(
-  f"fs.azure.sas.{blob_container}.{storage_account}.blob.core.windows.net",
-  dbutils.secrets.get(scope = secret_scope, key = secret_key)
-)
-
-# COMMAND ----------
-
-df_final.write.parquet(f"{blob_url}/joined_data_all")
+df_final.write.mode('overwrite').parquet(f"{blob_url}/joined_data{data_size}")
 
 # COMMAND ----------
 
