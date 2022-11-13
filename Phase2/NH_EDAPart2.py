@@ -2,10 +2,11 @@
 from pyspark.sql.functions import col, floor, countDistinct
 from pyspark.sql.functions import isnan, when, count, col
 import pyspark.sql.functions as F
-from pyspark.sql import SQLContext
 from pyspark.sql.window import Window
 from pyspark.sql.types import IntegerType
+
 import pandas as pd
+from pyspark.sql import SQLContext
 
 # COMMAND ----------
 
@@ -18,8 +19,6 @@ secret_scope = "sasfscope" # The name of the scope created in your local compute
 secret_key = "sasfkey" # The name of the secret key created in your local computer using the Databricks CLI 
 blob_url = f"wasbs://{blob_container}@{storage_account}.blob.core.windows.net"
 mount_path = "/mnt/mids-w261"
-
-# COMMAND ----------
 
 # SAS Token login
 spark.conf.set(
@@ -125,7 +124,7 @@ df_flights1.groupBy("ORIGIN_AIRPORT_ID") \
 # COMMAND ----------
 
 print("Unique origin count (expect 388): ", df_flights1.select("ORIGIN_AIRPORT_ID","ORIGIN").distinct().count())
-print("Unique origin count (expect 386): ", df_flights1.select("DEST_AIRPORT_ID","DEST").distinct().count())
+print("Unique dest count (expect 386): ", df_flights1.select("DEST_AIRPORT_ID","DEST").distinct().count())
 
 # COMMAND ----------
 
@@ -182,11 +181,39 @@ display(dff.limit(20))
 # pending:
 # 1. Avoid data leakage: convert dep time to local time and ensure that the difference between the dep times for flights with the same tail number is >2 hrs
 # 2. Create helper column is_prev_flight_gt2hr
-# 3. Data cleansing for delay 15
+# 3. Data cleansing for DEP_DEL15
 import pyspark.sql.window
 w = Window.partitionBy("FL_DATE", "TAIL_NUM").orderBy("DEP_TIME")
-is_prev_delayed = F.lag("DEP_DEL15", 1).over(w)
-dff = dff.withColumn("is_prev_delayed", is_prev_delayed)
+
+is_1prev_delayed = F.lag("DEP_DEL15", 1).over(w)
+is_2prev_delayed = F.lag("DEP_DEL15", 2).over(w)
+prev_dep_time = F.lag("DEP_TIME", 1).over(w)
+dff = dff.withColumn("prev_dep_time", prev_dep_time)
+dff = dff.withColumn("is_1prev_delayed", is_1prev_delayed)
+dff = dff.withColumn("is_2prev_delayed", is_2prev_delayed)
+dff = dff.withColumn("dep_time_diff", (dff["DEP_TIME"] - dff["prev_dep_time"]))
+
+# COMMAND ----------
+
+print(dff.filter(col("prev_dep_time") < 200).count())
+
+# COMMAND ----------
+
+dff = dff.withColumn(
+    "is_prev_delayed",
+    F.when((dff["dep_time_diff"]) >= 200, dff['is_1prev_delayed'])
+    .otherwise(dff['is_2prev_delayed'])
+)
+
+
+# COMMAND ----------
+
+dff.describe(['is_prev_delayed']).show()
+
+# COMMAND ----------
+
+print(dff.schema["prev_dep_time"].dataType)
+print(dff.schema["DEP_TIME"].dataType)
 
 # COMMAND ----------
 
@@ -194,6 +221,4 @@ display(dff.limit(5))
 
 # COMMAND ----------
 
-# Next observe difference between joined dataset vs. dff
 
-print(hi)
