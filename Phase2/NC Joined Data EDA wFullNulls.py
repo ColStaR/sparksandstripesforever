@@ -59,7 +59,7 @@ print("**Data Frames Loaded")
 
 df_joined_data_all.printSchema()
 
-features = ['QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_ID', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_WAC', 'DEST_AIRPORT_ID', 'DEST_AIRPORT_SEQ_ID', 'DEST_WAC', 'DEP_TIME', 'DEP_DEL15', 'CANCELLED', 'CRS_ELAPSED_TIME', 'DISTANCE', 'YEAR', 'STATION', 'DATE', 'ELEVATION', 'SOURCE', 'HourlyDewPointTemperature', 'HourlyDryBulbTemperature', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'DATE_HOUR', 'distance_to_neighbor', 'neighbor_call']
+features = ['QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_ID', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_WAC', 'DEST_AIRPORT_ID', 'DEST_AIRPORT_SEQ_ID', 'DEST_WAC', 'DEP_TIME', 'DEP_DEL15', 'CANCELLED', 'CRS_ELAPSED_TIME', 'DISTANCE', 'YEAR', 'DATE', 'ELEVATION', 'SOURCE', 'HourlyDewPointTemperature', 'HourlyDryBulbTemperature', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'DATE_HOUR', 'distance_to_neighbor', 'neighbor_call']
 #print(features)
 
 for feature in df_joined_data_all.select(features).columns:
@@ -104,7 +104,8 @@ display(df_joined_data_all.filter(col("CANCELLATION_CODE").isNotNull()).count())
 
 # COMMAND ----------
 
-dfnum = df_joined_data_all[['DISTANCE', 'ELEVATION', 'HourlyDewPointTemperature', 'HourlyDryBulbTemperature', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'distance_to_neighbor']]
+
+dfnum = df_joined_data_all[['DISTANCE', 'ELEVATION', 'HourlyDewPointTemperature', 'HourlyAltimeterSetting', 'HourlyWetBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlyDewPointTemperature',  'HourlyDryBulbTemperature', 'HourlySeaLevelPressure', 'HourlyPressureChange', 'HourlyWindGustSpeed','HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'distance_to_neighbor']]
 
 
 
@@ -124,8 +125,33 @@ df2.show()
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC - DISTANCE |       0
+# MAGIC - ELEVATION|        0
+# MAGIC - HourlyDewPointTemperature|                      834
+# MAGIC - HourlyAltimeterSetting|                    38|
+# MAGIC - HourlyWetBulbTemperature|                   19468
+# MAGIC - HourlyPrecipitation |            1187907
+# MAGIC - HourlyStationPressure |                17708
+# MAGIC - HourlyDewPointTemperature |                      834
+# MAGIC - HourlyDryBulbTemperature |               272
+# MAGIC - HourlySeaLevelPressure |                 13152
+# MAGIC - HourlyPressureChange |                 8557705
+# MAGIC - HourlyWindGustSpeed |             19756379
+# MAGIC - HourlyRelativeHumidity |           552
+# MAGIC - HourlyVisibility |                   192
+# MAGIC - HourlyWindSpeed |             280
+# MAGIC - distance_to_neighbor |                   0 
+# MAGIC 
+# MAGIC 
+# MAGIC |DISTANCE|ELEVATION|HourlyDewPointTemperature|HourlyAltimeterSetting|HourlyWetBulbTemperature|HourlyPrecipitation|HourlyStationPressure|HourlyDewPointTemperature|HourlyDryBulbTemperature|HourlySeaLevelPressure|HourlyPressureChange|HourlyWindGustSpeed|HourlyRelativeHumidity|HourlyVisibility|HourlyWindSpeed|distance_to_neighbor|
+# MAGIC 
+# MAGIC |       0|        0|                      834|                    38|                   19468|            1187907|                17708|                      834|                     272|                 13152|             8557705|           19756379|                   552|             192|            280|                   0|
 
-dfnon = df_joined_data_all[['QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_ID', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_WAC', 'DEST_AIRPORT_ID', 'DEST_AIRPORT_SEQ_ID', 'DEST_WAC', 'DEP_TIME', 'DEP_DEL15', 'CANCELLED', 'CRS_ELAPSED_TIME', 'DISTANCE', 'YEAR', 'STATION', 'DATE', 'ELEVATION', 'SOURCE', 'DATE_HOUR', 'neighbor_call']]
+# COMMAND ----------
+
+
+dfnon = df_joined_data_all[['QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_ID', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_WAC', 'DEST_AIRPORT_ID', 'DEST_AIRPORT_SEQ_ID', 'DEST_WAC', 'DEP_TIME', 'DEP_DEL15', 'CANCELLED', 'CRS_ELAPSED_TIME', 'DISTANCE', 'YEAR', 'DATE', 'ELEVATION', 'SOURCE', 'DATE_HOUR']]
 
 # COMMAND ----------
 
