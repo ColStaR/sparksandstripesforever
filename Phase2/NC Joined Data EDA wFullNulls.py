@@ -54,12 +54,48 @@ print("**Data Frames Loaded")
 
 # COMMAND ----------
 
+df_joined_data_all = spark.read.parquet(f"{blob_url}/joined_data_all")
+
+
+# COMMAND ----------
+
+display(df_joined_data_all.select("MONTH"))
+
+
+# COMMAND ----------
+
+display(df_joined_data_all.select("HourlyWetBulbTemperature"))
+
+
+# COMMAND ----------
+
+display(df_joined_data_all.select("HourlyDryBulbTemperature"))
+
+
+# COMMAND ----------
+
+display(df_joined_data_all.select("HourlyWindSpeed"))
+
+
+# COMMAND ----------
+
+display(df_joined_data_all.select("DEP_DEL15"))
+
+
+# COMMAND ----------
+
+selectColumns = df_joined_data_all.columns
+selectColumns
+
+
+# COMMAND ----------
+
 # Initial Correlation of numerical features with DEL15
 # Decent correlation (corr > abs(0.1)) for DEST_AIRPORT_ID, DEST_AIRPORT_SEQ_ID, DEP_TIME 
 
 df_joined_data_all.printSchema()
 
-features = ['QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_ID', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_WAC', 'DEST_AIRPORT_ID', 'DEST_AIRPORT_SEQ_ID', 'DEST_WAC', 'DEP_TIME', 'DEP_DEL15', 'CANCELLED', 'CRS_ELAPSED_TIME', 'DISTANCE', 'YEAR', 'DATE', 'ELEVATION', 'SOURCE', 'HourlyDewPointTemperature', 'HourlyDryBulbTemperature', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'DATE_HOUR', 'distance_to_neighbor', 'neighbor_call']
+features = ['QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_ID', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_WAC', 'DEST_AIRPORT_ID', 'DEST_AIRPORT_SEQ_ID', 'DEST_WAC', 'DEP_TIME', 'DEP_DEL15', 'CANCELLED', 'CRS_ELAPSED_TIME', 'DISTANCE', 'YEAR', 'DATE', 'ELEVATION', 'SOURCE', 'HourlyDewPointTemperature', 'HourlyDryBulbTemperature', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'DATE_HOUR', 'distance_to_neighbor']
 #print(features)
 
 for feature in df_joined_data_all.select(features).columns:
@@ -150,6 +186,12 @@ df2.show()
 
 # COMMAND ----------
 
+# MAGIC %md 
+# MAGIC drop everything greather than 5% of 30,000,000 | 1.5 Million
+# MAGIC - dropping WindGustSpeed and HourlyPressureChange
+
+# COMMAND ----------
+
 
 dfnon = df_joined_data_all[['QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_ID', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_WAC', 'DEST_AIRPORT_ID', 'DEST_AIRPORT_SEQ_ID', 'DEST_WAC', 'DEP_TIME', 'DEP_DEL15', 'CANCELLED', 'CRS_ELAPSED_TIME', 'DISTANCE', 'YEAR', 'DATE', 'ELEVATION', 'SOURCE', 'DATE_HOUR']]
 
@@ -164,6 +206,13 @@ df3 = dfnon.select([count(when(col(c).contains('None') | \
                     for c in dfnon.columns])
 df3.show()
 
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC |QUARTER|MONTH|DAY_OF_MONTH|DAY_OF_WEEK|OP_CARRIER_FL_NUM|ORIGIN_AIRPORT_ID|ORIGIN_AIRPORT_SEQ_ID|ORIGIN_WAC|DEST_AIRPORT_ID|DEST_AIRPORT_SEQ_ID|DEST_WAC|DEP_TIME|DEP_DEL15|CANCELLED|CRS_ELAPSED_TIME|DISTANCE|YEAR|    DATE|ELEVATION|SOURCE|DATE_HOUR|
+# MAGIC 
+# MAGIC |      0|    0|           0|          0|                0|                0|                    0|         0|              0|                  0|       0|  465553|        0|        0|             160|       0|   0|30820796|        0|     0| 30820796|
 
 # COMMAND ----------
 
