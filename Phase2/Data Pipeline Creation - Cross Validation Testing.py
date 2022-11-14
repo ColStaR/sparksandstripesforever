@@ -3,7 +3,7 @@
 # MAGIC 
 # MAGIC # Data Pipeline Creation
 # MAGIC 
-# MAGIC Useful links? 
+# MAGIC Adapted From:
 # MAGIC 
 # MAGIC https://towardsdatascience.com/building-an-ml-application-with-mllib-in-pyspark-part-1-ac13f01606e2
 # MAGIC 
@@ -73,28 +73,44 @@ display(df_joined_data_3m)
 df_joined_data_all = spark.read.parquet(f"{blob_url}/joined_data_all")
 display(df_joined_data_all)
 
+#df_joined_data_2015_2020 = df_joined_data_all.filter(col("YEAR") < 2021)
+#display(df_joined_data_all)
+
+#df_joined_data_2021 = df_joined_data_all.filter(col("YEAR") == 2021)
+#display(df_joined_data_2021)
+
 print("**Data Frames Loaded")
 
 # COMMAND ----------
 
 # Data cleaning Tasks
 
-df_joined_data_3m = df_joined_data_3m.na.fill(value = 1,subset=["DEP_DEL15"])
+#df_joined_data_3m = df_joined_data_3m.na.fill(value = 1,subset=["DEP_DEL15"])
 df_joined_data_all = df_joined_data_all.na.fill(value = 1,subset=["DEP_DEL15"])
 #display(df_joined_data_3m)
 #display(df_joined_data_all)
 
+#df_joined_data_2015_2020 = df_joined_data_2015_2020.na.fill(value = 1,subset=["DEP_DEL15"])
+#df_joined_data_2021 = df_joined_data_2021.na.fill(value = 1,subset=["DEP_DEL15"])
+
 # COMMAND ----------
 
 # dataframe schema
-print(df_joined_data_3m.count())
-df_joined_data_3m.printSchema()
+print(df_joined_data_all.count())
+df_joined_data_all.printSchema()
+#print(df_joined_data_all.columns)
 
 # COMMAND ----------
 
 # Convert categorical features to One Hot Encoding
-categoricalColumns = ["ORIGIN", "OP_UNIQUE_CARRIER", "TAIL_NUM", "ORIGIN_STATE_ABR", "DEST_STATE_ABR"]
-# Features not included: DEP_DATETIME_LAG, FL_DATE, CRS_DEP_TIME, CANCELLATION_CODE, DEP_HOUR, DEP_DATETIME
+
+# Join v1 columns:
+#categoricalColumns = ["ORIGIN", "OP_UNIQUE_CARRIER", "TAIL_NUM", "ORIGIN_STATE_ABR", "DEST_STATE_ABR"]
+
+categoricalColumns = ['ORIGIN', 'QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'FL_DATE', 'OP_UNIQUE_CARRIER', 'TAIL_NUM', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_STATE_ABR',  'DEST_AIRPORT_SEQ_ID', 'DEST_STATE_ABR', 'CRS_DEP_TIME', 'YEAR']
+# Features Not Included: DEP_DATETIME_LAG, 'CRS_ELAPSED_TIME', 'DISTANCE','DEP_DATETIME','DATE','ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyPressureChange', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'HourlyWindGustSpeed', 'MonthlyMeanTemperature', 'MonthlyMaximumTemperature', 'MonthlyGreatestSnowDepth', 'MonthlyGreatestSnowfall', 'MonthlyTotalSnowfall', 'MonthlyTotalLiquidPrecipitation', 'MonthlyMinimumTemperature', 'DATE_HOUR', 'distance_to_neighbor', 'neighbor_lat', 'neighbor_lon', 'time_zone_id', 'UTC_DEP_DATETIME_LAG', 'UTC_DEP_DATETIME', DEP_DEL15,  'flight_id', 'ORIGIN_AIRPORT_ID', 'DEST_AIRPORT_ID','ORIGIN_WAC', 'DEST_WAC', 'CANCELLED', 'CANCELLATION_CODE', 'SOURCE'
+
+# Is including this data leakage? 'DEP_TIME', 'DEP_HOUR', 
 
 stages = [] # stages in Pipeline
 
@@ -109,25 +125,26 @@ for categoricalCol in categoricalColumns:
     # Add stages.  These are not run here, but will run all at once later on.
     stages += [stringIndexer, encoder]
 #    
-print(stages)
+#print(stages)
 
-CRS_DEP_TIME_stringIdx = StringIndexer(inputCol="CRS_DEP_TIME", outputCol="CRS_DEP_TIME_INDEX").setHandleInvalid("skip")
-stages += [CRS_DEP_TIME_stringIdx]
-DEP_HOUR_stringIdx = StringIndexer(inputCol="DEP_HOUR", outputCol="DEP_HOUR_INDEX").setHandleInvalid("skip")
-stages += [DEP_HOUR_stringIdx]
+#CRS_DEP_TIME_stringIdx = StringIndexer(inputCol="CRS_DEP_TIME", outputCol="CRS_DEP_TIME_INDEX").setHandleInvalid("skip")
+#stages += [CRS_DEP_TIME_stringIdx]
+#DEP_HOUR_stringIdx = StringIndexer(inputCol="DEP_HOUR", outputCol="DEP_HOUR_INDEX").setHandleInvalid("skip")
+#stages += [DEP_HOUR_stringIdx]
 
-print(stages)
+#print(stages)
 
 # COMMAND ----------
 
 # Create vectors for numeric and categorical variables
-#numericCols = ["QUARTER", "MONTH", "DAY_OF_MONTH", "DAY_OF_WEEK", "OP_CARRIER_FL_NUM", "ORIGIN_AIRPORT_ID", "ORIGIN_AIRPORT_SEQ_ID", "ORIGIN_WAC", "DEST_AIRPORT_ID", "DEST_AIRPORT_SEQ_ID", "DEST_WAC", "DEP_TIME", "CANCELLED", "CRS_ELAPSED_TIME", "DISTANCE", "YEAR", "STATION", "DATE", "ELEVATION", "SOURCE", "HourlyDewPointTemperature", "HourlyDryBulbTemperature", "HourlyRelativeHumidity", "HourlyVisibility", "HourlyWindSpeed", "DATE_HOUR", "distance_to_neighbor", "neighbor_call"]
 
-# NOTE: Had to cut out a bunch of features due to the sheer number of NULLS in them, which were causing the entire dataframe to be skipped. Will need to get the Null values either filled or dropped.
+# Join v2 columns:
+#numericCols = ["QUARTER", "MONTH", "DAY_OF_MONTH", "DAY_OF_WEEK", "OP_CARRIER_FL_NUM", "ORIGIN_AIRPORT_ID", "ORIGIN_AIRPORT_SEQ_ID", "ORIGIN_WAC", "DEST_AIRPORT_ID", "DEST_AIRPORT_SEQ_ID", "DEST_WAC", "DEP_TIME", "CANCELLED", "CRS_ELAPSED_TIME", "DISTANCE", "YEAR", "ELEVATION", "SOURCE", "HourlyDewPointTemperature", "HourlyDryBulbTemperature", "HourlyRelativeHumidity", "HourlyVisibility", "HourlyWindSpeed", "distance_to_neighbor"]
 
-#Works:
-# Removed: Date, date_hour, neighbor_call
-numericCols = ["QUARTER", "MONTH", "DAY_OF_MONTH", "DAY_OF_WEEK", "OP_CARRIER_FL_NUM", "ORIGIN_AIRPORT_ID", "ORIGIN_AIRPORT_SEQ_ID", "ORIGIN_WAC", "DEST_AIRPORT_ID", "DEST_AIRPORT_SEQ_ID", "DEST_WAC", "DEP_TIME", "CANCELLED", "CRS_ELAPSED_TIME", "DISTANCE", "YEAR", "STATION", "ELEVATION", "SOURCE", "HourlyDewPointTemperature", "HourlyDryBulbTemperature", "HourlyRelativeHumidity", "HourlyVisibility", "HourlyWindSpeed", "distance_to_neighbor"]
+numericCols = ['CRS_ELAPSED_TIME', 'DISTANCE','ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed']
+# Features Not Included: 'DEP_DATETIME','DATE', 'HourlyWindGustSpeed', 'MonthlyMeanTemperature', 'MonthlyMaximumTemperature', 'MonthlyGreatestSnowDepth', 'MonthlyGreatestSnowfall', 'MonthlyTotalSnowfall', 'MonthlyTotalLiquidPrecipitation', 'MonthlyMinimumTemperature', 'DATE_HOUR', 'time_zone_id', 'UTC_DEP_DATETIME_LAG', 'UTC_DEP_DATETIME', 'HourlyPressureChange', 'distance_to_neighbor', 'neighbor_lat', 'neighbor_lon'
+
+# HourlyPrecipitation is 3% of data has null values. Impute mean value?
 
 assemblerInputs = [c + "classVec" for c in categoricalColumns] + numericCols
 #assemblerInputs = numericCols
@@ -153,6 +170,8 @@ preppedDataDF = pipelineModel.transform(df_joined_data_all)
 
 # COMMAND ----------
 
+# Takes about 30 minutes
+
 #totalFeatures = [*categoricalColumns, *numericCols]
 #print(categoricalColumns, "\n")
 #print(numericCols, "\n")
@@ -166,15 +185,21 @@ display(lrModel, preppedDataDF, "ROC")
 
 # COMMAND ----------
 
+
+
+# COMMAND ----------
+
 display(lrModel, preppedDataDF)
 
 # COMMAND ----------
+
+# Takes about 19 Minutes
 
 preppedDataDF = preppedDataDF.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
 
 display(preppedDataDF)
 
-selectedcols = ["DEP_DEL15", "QUARTER", "DEP_DATETIME_LAG_percent", "features"]
+selectedcols = ["DEP_DEL15", "YEAR", "QUARTER", "DEP_DATETIME_LAG_percent", "features"]
 
 dataset = preppedDataDF.select(selectedcols)
 
@@ -182,11 +207,14 @@ display(dataset)
 
 # COMMAND ----------
 
+# Takes about 9 minutes
+
 #(trainingData, testData) = dataset.randomSplit([0.7, 0.3], seed=100)
 
 # Training set of last thirty %.
-trainingData = dataset.filter(col("DEP_DATETIME_LAG_percent") <= .70)
-testData = dataset.filter(col("DEP_DATETIME_LAG_percent") > .70)
+trainingData = dataset.filter(col("YEAR") < 2021).filter(col("DEP_DATETIME_LAG_percent") <= .70)
+trainingTestData = dataset.filter(col("YEAR") < 2021).filter(col("DEP_DATETIME_LAG_percent") > .70)
+testData = dataset.filter(col("YEAR") == 2021)
 
 #trainingData = dataset.filter(col("QUARTER") != 4)
 #testData = dataset.filter(col("QUARTER") == 4)
@@ -195,14 +223,54 @@ print(trainingData.count())
 
 print(testData.count())
 
+display(trainingData)
+
 # COMMAND ----------
+
+def createLinearRegressionModel(num_iterations, trainingData_input):
+    lr = LogisticRegression(num_iterations, labelCol="DEP_DEL15", featuresCol="features")
+    lrModel = lr.fit(trainingData_input)
+    return lrModel
+
+def runLogisticRegression(linearRegressionModel, testData):
+    predictions = linearRegressionModel.transform(testData)
+#    selected = predictions.select("DEP_DEL15", "prediction", "probability")
+#    display(selected)
+    
+    metrics = MulticlassMetrics(predictions.select("DEP_DEL15", "prediction").rdd)
+    print("categoricalColumns =", categoricalColumns)
+    print("numericalCols =", numericCols)
+    print("Precision = %s" % metrics.precision(1))
+#    print("F1 = %s" % metrics.f1(1))
+    print("Recall = %s" % metrics.recall(1))
+    print("Accuracy = %s" % metrics.accuracy)
+
+# COMMAND ----------
+
+# Takes about 32 minutes
+
+lr = LogisticRegression(labelCol="DEP_DEL15", featuresCol="features", maxIter=10)
+
+# Train model with Training Data
+
+lrModel = lr.fit(trainingData)
+
+#linearRegressionModel_Training = createLinearRegressionModel(trainingData, maxIter=10)
+runLogisticRegression(lrModel, trainingTestData)
+#runLogisticRegression(lrModel, testData)
+
+# COMMAND ----------
+
+#display(lrModel.transform(trainingTestData).select("DEP_DEL15", "prediction", "probability"))
+
+# COMMAND ----------
+
+# Takes about 13 minutes 
 
 # Logistic Regression
 # Create initial LogisticRegression model
 
 lr = LogisticRegression(labelCol="DEP_DEL15", featuresCol="features", maxIter=10)
-
- 
 
 # Train model with Training Data
 
@@ -229,24 +297,6 @@ display(selected)
 # COMMAND ----------
 
 metrics = MulticlassMetrics(predictions.select("DEP_DEL15", "prediction").rdd)
-#display(predictions.select("label", "prediction").rdd.collect())
-
-#TP = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 1) & (col("prediction") == 1)).count()
-#print(TP)
-#TN = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 0) & (col("prediction") == 0)).count()
-#print(TN)
-#FP = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 1) & (col("prediction") == 0)).count()
-#print(FP)
-#FN = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 0) & (col("prediction") == 1)).count()
-#print(FN)
-
-#precision = TP / (TP + FP)
-#recall = TP / (TP + FN)
-#accuracy = (TN + TP) / (TN + TP + FP + FN)
-
-#print("Manual Precision: ", precision)
-#print("Manual Recall: ", recall)
-#print("Manual Accuracy: ", accuracy)
 
 # Computed using MulticlassMetrics
 
@@ -260,25 +310,7 @@ print("Accuracy = %s" % metrics.accuracy)
 
 # MAGIC %md
 # MAGIC 
-# MAGIC Q1
-# MAGIC Precision = 0.07003872958426485
-# MAGIC Recall = 0.45641040924692405
-# MAGIC Accuracy = 0.814425909697851
-# MAGIC 
-# MAGIC Q2
-# MAGIC Precision = 0.03032155640150807
-# MAGIC Recall = 0.5658141975158008
-# MAGIC Accuracy = 0.8038745782767331
-# MAGIC 
-# MAGIC Q3
-# MAGIC Precision = 0.02091388482728226
-# MAGIC Recall = 0.5310050617054054
-# MAGIC Accuracy = 0.8096329067055504
-# MAGIC 
-# MAGIC Q4
-# MAGIC Precision = 0.0406422206027131
-# MAGIC Recall = 0.4440021300927987
-# MAGIC Accuracy = 0.833388332991123
+# MAGIC v2 Data Set
 # MAGIC 
 # MAGIC Q1-4 Averages:
 # MAGIC Precision = 0.04045
@@ -294,6 +326,29 @@ print("Accuracy = %s" % metrics.accuracy)
 # MAGIC Precision = 0.03555337944803945
 # MAGIC Recall = 0.5082754984010343
 # MAGIC Accuracy = 0.8156185988403839
+# MAGIC 
+# MAGIC v2 Data Set
+# MAGIC 
+# MAGIC 70-30 percentage split
+# MAGIC categoricalColumns = ['ORIGIN', 'OP_UNIQUE_CARRIER', 'TAIL_NUM', 'ORIGIN_STATE_ABR', 'DEST_STATE_ABR']
+# MAGIC numericalCols = ['QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_ID', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_WAC', 'DEST_AIRPORT_ID', 'DEST_AIRPORT_SEQ_ID', 'DEST_WAC', 'DEP_TIME', 'CANCELLED', 'CRS_ELAPSED_TIME', 'DISTANCE', 'YEAR', 'ELEVATION', 'SOURCE', 'HourlyDewPointTemperature', 'HourlyDryBulbTemperature', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'distance_to_neighbor']
+# MAGIC Precision = 0.03523330919916401
+# MAGIC Recall = 0.5101780622485635
+# MAGIC Accuracy = 0.8156644749442552
+# MAGIC 
+# MAGIC 70-30 % split with complete set of new variables
+# MAGIC categoricalColumns = ['ORIGIN', 'QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'FL_DATE', 'OP_UNIQUE_CARRIER', 'TAIL_NUM', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_ID', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_STATE_ABR', 'ORIGIN_WAC', 'DEST_AIRPORT_ID', 'DEST_AIRPORT_SEQ_ID', 'DEST_STATE_ABR', 'DEST_WAC', 'CRS_DEP_TIME', 'DEP_TIME', 'CANCELLED', 'CANCELLATION_CODE', 'YEAR', 'DEP_HOUR', 'SOURCE', 'flight_id']
+# MAGIC numericalCols = ['CRS_ELAPSED_TIME', 'DISTANCE', 'ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyPressureChange', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'distance_to_neighbor', 'neighbor_lat', 'neighbor_lon']
+# MAGIC Precision = 0.6197107659346546
+# MAGIC Recall = 0.5882053889171327
+# MAGIC Accuracy = 0.5623380362798733
+# MAGIC 
+# MAGIC 70-30 % split with refined variables
+# MAGIC categoricalColumns = ['ORIGIN', 'QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'FL_DATE', 'OP_UNIQUE_CARRIER', 'TAIL_NUM', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_STATE_ABR', 'DEST_AIRPORT_SEQ_ID', 'DEST_STATE_ABR', 'CRS_DEP_TIME', 'YEAR']
+# MAGIC numericalCols = ['CRS_ELAPSED_TIME', 'DISTANCE', 'ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed']
+# MAGIC Precision = 0.01718794406241851
+# MAGIC Recall = 0.5598992135603573
+# MAGIC Accuracy = 0.8082395453515033
 
 # COMMAND ----------
 
@@ -377,24 +432,6 @@ display(selected)
 
 # Metric Evaluation
 metrics = MulticlassMetrics(predictions.select("DEP_DEL15", "prediction").rdd)
-#display(predictions.select("label", "prediction").rdd.collect())
-
-#TP = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 1) & (col("prediction") == 1)).count()
-#print(TP)
-#TN = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 0) & (col("prediction") == 0)).count()
-#print(TN)
-#FP = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 1) & (col("prediction") == 0)).count()
-#print(FP)
-#FN = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 0) & (col("prediction") == 1)).count()
-#print(FN)
-
-#precision = TP / (TP + FP)
-#recall = TP / (TP + FN)
-#accuracy = (TN + TP) / (TN + TP + FP + FN)
-
-#print("Manual Precision: ", precision)
-#print("Manual Recall: ", recall)
-#print("Manual Accuracy: ", accuracy)
 
 # Computed using MulticlassMetrics
 
@@ -526,6 +563,20 @@ display(dbutils.fs.ls(f"{data_BASE_DIR}datasets_final_project_2022/"))
 
 df_test = spark.read.parquet(f"{data_BASE_DIR}datasets_final_project_2022/parquet_airlines_data/")
 display(df_test.filter(col("YEAR") == 2021))
+
+# COMMAND ----------
+
+features = ['ORIGIN', 'QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'FL_DATE', 'OP_UNIQUE_CARRIER', 'TAIL_NUM', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_STATE_ABR',  'DEST_AIRPORT_SEQ_ID', 'DEST_STATE_ABR', 'CRS_DEP_TIME', 'YEAR', 'CRS_ELAPSED_TIME', 'DISTANCE','ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed']
+
+df2 = df_joined_data_all.select([count(when(col(c).contains('None') | \
+                            col(c).contains('NULL') | \
+                            (col(c) == '' ) | \
+                            col(c).isNull() | \
+                            isnan(c), c 
+                           )).alias(c)
+                    for c in features])
+
+df2.show()
 
 # COMMAND ----------
 

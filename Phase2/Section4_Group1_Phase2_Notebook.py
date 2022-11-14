@@ -134,14 +134,20 @@
 # MAGIC 
 # MAGIC ## Missing Values
 # MAGIC 
-# MAGIC 
+# MAGIC df_airlines.count() = 42430592
+# MAGIC TAIL_NUM = 242827 = 0.572%
+# MAGIC DEP_TIME = 852812 = 2.009%
+# MAGIC DEP_DEL15 = 857939 = 2.021%
+# MAGIC CANCELLATION_CODE = 41556551 = 97.940%
+# MAGIC CRS_ELAPSED_TIME = 170 = 0.00004%
 # MAGIC 
 # MAGIC ## Remarkable Findings
 # MAGIC 
 # MAGIC ### Airlines Data Set
 # MAGIC 
-# MAGIC - For features that were indicative of flight departures (indicated by the "DEP" in the names), having null values in those features were 1:1 associated with the flights being cancelled ("CANCELLED" == 1). It was confirmed that for every null value corresponding to a departure-related feature, the flight in question was indeed cancelled.
+# MAGIC - For features that were indicative of flight departures ("DEP_TIME" and "DEP_DEL15"), having null values in those features were 1:1 associated with the flights being cancelled ("CANCELLED" == 1). It was confirmed that for every null value corresponding to a departure-related feature, the flight in question was indeed cancelled.
 # MAGIC - In general, none of the Airlines features showed any strong correlation with the response variable DEP_DELAY15. However, the feature with the strongest correlation was "CRS_DEP_TIME" with an R value of 0.1565. While this is not an indicator of a strong correlation, the R value is significantly higher than any of the other features.
+# MAGIC - Similar to the previous point, the feature "CANCELLATION_CODE" is null for the majority of cases where a flight is not cancelled. Therefore, it has an expected value of 97.940% null values.
 # MAGIC 
 # MAGIC ### Weather Data Set
 # MAGIC 
@@ -193,8 +199,13 @@
 # MAGIC 
 # MAGIC ## Missing Data
 # MAGIC 
+# MAGIC Cancelled flights turned into delayed flights with DEP_DEL15 = 1.
+# MAGIC 
+# MAGIC Dropped/skipped all rows with null values that could not be confidently replaced with an inferred value ("TAIL_NUM", etc.). Counts are minimal, ~2% of total count of rows, so assumed to be insignificant impact on analysis.
+# MAGIC  
 # MAGIC ## Non-Numerical Features
-# MAGIC StringIndexing and Tokenization
+# MAGIC 
+# MAGIC StringIndexing and Tokenization of categorical features
 
 # COMMAND ----------
 
@@ -208,9 +219,9 @@
 # MAGIC 
 # MAGIC ## Pipeline Diagram, Process
 # MAGIC 
-# MAGIC Below is a diagram of our pipeline, which follows and includes all of the major tasks and processes that our pipeline conducts.
+# MAGIC Below is an updated diagram of our pipeline, which follows and includes all of the major tasks and processes that our pipeline conducts thus far.
 # MAGIC 
-# MAGIC ![Data Pipeline Image](https://github.com/ColStaR/sparksandstripesforever/blob/main/Phase1/images/Group1_Phase1_ProjectProposal_PipelineViz-1.jpg?raw=true)
+# MAGIC ![Data Pipeline Image](https://github.com/ColStaR/sparksandstripesforever/blob/main/Phase2/images/DataPipelinev2.png?raw=true)
 # MAGIC 
 # MAGIC ## Baseline Model, Features
 # MAGIC 
@@ -256,8 +267,12 @@
 # MAGIC 
 # MAGIC ## Baseline Model Evaluation
 # MAGIC 
+# MAGIC Precision = 0.01718794406241851
+# MAGIC Recall = 0.5598992135603573
+# MAGIC Accuracy = 0.8082395453515033
+# MAGIC 
 # MAGIC ## Link to Data Pipeline Creation, Baseline Model Evaluation Notebook
-# MAGIC [Data Pipeline Creation, Baseline Model Evaluation Notebook](https://adb-731998097721284.4.azuredatabricks.net/?o=731998097721284#notebook/1020093804822439/command/1020093804822440)
+# MAGIC [Data Pipeline Creation, Baseline Model Evaluation Notebook](https://adb-731998097721284.4.azuredatabricks.net/?o=731998097721284#notebook/1020093804822439/command/1020093804826247)
 
 # COMMAND ----------
 
@@ -279,9 +294,9 @@
 
 # MAGIC %md 
 # MAGIC 
-# MAGIC # Link to Presentation Video
+# MAGIC # Link to Phase 2 Presentation Video
 # MAGIC 
-# MAGIC Nash and Ryan
+# MAGIC [Click Here for the Video](https://drive.google.com/file/d/1Ubpv8pGEZStzTEzrSpBFVwnFjY6y3aSx/view?usp=sharing)
 
 # COMMAND ----------
 
