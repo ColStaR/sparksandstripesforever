@@ -9,4 +9,12 @@ print('hello')
 
 # COMMAND ----------
 
+pip install -U scikit-learn
+
+# COMMAND ----------
+
+import sklearn
+
+# COMMAND ----------
+
 
