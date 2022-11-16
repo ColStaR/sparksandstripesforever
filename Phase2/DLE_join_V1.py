@@ -1,5 +1,8 @@
 # Databricks notebook source
-data_size = '_3m'
+# data_size = '_3m'
+# data_size = '_6m'
+# data_size = '_1y'
+data_size = ''
 
 # COMMAND ----------
 
@@ -42,6 +45,12 @@ print("**Data Loaded")
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC 
+# MAGIC ## Join Airlines and Weather datasets
+
+# COMMAND ----------
+
 # Load 2015 Q1 for Flights        dbfs:/mnt/mids-w261/datasets_final_project_2022/parquet_airlines_data_3m/
 df_airlines = spark.read.parquet(f"{data_BASE_DIR}parquet_airlines_data{data_size}/").distinct()\
                         .select('QUARTER','MONTH','DAY_OF_MONTH','DAY_OF_WEEK','FL_DATE','OP_UNIQUE_CARRIER','TAIL_NUM','OP_CARRIER_FL_NUM',
@@ -51,9 +60,12 @@ df_airlines = spark.read.parquet(f"{data_BASE_DIR}parquet_airlines_data{data_siz
 
 df_airlines = df_airlines.withColumn("CRS_DEP_TIME", concat(lit('000'), col("CRS_DEP_TIME").cast(StringType())) ) \
                          .withColumn("DEP_HOUR", expr("substring(CRS_DEP_TIME, -4, 2)") ) \
-                         .withColumn("DEP_DATETIME", concat( col('FL_DATE'), lit('T'), col('DEP_HOUR'), lit(':00:00')) ) \
-                         .withColumn("DEP_DATETIME_LAG", to_timestamp(col("DEP_DATETIME")) - expr("INTERVAL 2 HOURS") )
+                         .withColumn("DEP_DAY", expr("substring(FL_DATE, 0, 10)") ) \
+                         .withColumn("DEP_DATETIME", concat( col('DEP_DAY'), lit('T'), col('DEP_HOUR'), lit(':00:00')) ) \
+                         .withColumn("DEP_DATETIME_LAG", to_timestamp(col("DEP_DATETIME")) - expr("INTERVAL 2 HOURS") )\
+                         .dropna(subset = ['TAIL_NUM'])
 
+# add linen to drop nulls for tail number
 
 # COMMAND ----------
 
@@ -102,14 +114,16 @@ df_weather = spark.read.parquet(f"{data_BASE_DIR}parquet_weather_data{data_size}
                        .select('STATION','DATE','ELEVATION','SOURCE', 'HourlyAltimeterSetting',
                                'HourlyDewPointTemperature', 'HourlyWetBulbTemperature','HourlyDryBulbTemperature', 
                                'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 
-                               'HourlyPressureChange','HourlyRelativeHumidity', 
-                               'HourlyVisibility','HourlyWindSpeed','HourlyWindGustSpeed',
-                               'MonthlyMeanTemperature', 'MonthlyMaximumTemperature', 'MonthlyGreatestSnowDepth',
-                               'MonthlyGreatestSnowfall', 'MonthlyTotalSnowfall', 'MonthlyTotalLiquidPrecipitation',
-                               'MonthlyMinimumTemperature')\
+                               'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed')\
                        .filter(col("STATION").isin(stations_list) ) \
                        .withColumn("DATE_HOUR", expr("substring(DATE, 0, 13)") ) \
                        .withColumn("DEP_DATETIME_LAG", to_timestamp(col("DATE_HOUR")) + expr("INTERVAL 1 HOURS"))
+
+# 'HourlyPressureChange','HourlyWindGustSpeed',
+# 'MonthlyMeanTemperature', 'MonthlyMaximumTemperature', 'MonthlyGreatestSnowDepth',
+# 'MonthlyGreatestSnowfall', 'MonthlyTotalSnowfall', 'MonthlyTotalLiquidPrecipitation',
+# 'MonthlyMinimumTemperature'
+
 
 # display(df_weather)
 
@@ -127,15 +141,10 @@ airport_weather = airport_weather.groupBy('ORIGIN','DEP_DATETIME_LAG') \
 # COMMAND ----------
 
 df_final = df_airlines.join(airport_weather, ['DEP_DATETIME_LAG','ORIGIN']).cache()
-display(df_final)
 
 # COMMAND ----------
 
-df_final.select('ORIGIN').count() # 30820796 rows last time
-
-# COMMAND ----------
-
-display(df_final)
+df_final.select('ORIGIN').count() # 40933735 rows for all data, 1353640 for 3m data
 
 # COMMAND ----------
 
@@ -159,26 +168,55 @@ df_final = df_final.withColumn("UTC_DEP_DATETIME", F.to_utc_timestamp(col("DEP_D
 
 # MAGIC %md
 # MAGIC 
-# MAGIC ## Clean Nulls in Delay classification column
+# MAGIC ### Add unique identifier from Nina
 
 # COMMAND ----------
 
-df_final = df_final.fillna(1, ['DEP_DEL15'])
-
-# COMMAND ----------
-
-df_final.select('ORIGIN').count()
+df_final = df_final.withColumn('flight_id',
+                     concat(F.col('ORIGIN_AIRPORT_ID'),
+                              lit('-'), col('DEST_AIRPORT_ID'),
+                              lit('-'), col('FL_DATE'),
+                              lit('-'), col('OP_CARRIER_FL_NUM'),
+                              lit('-'), col('OP_UNIQUE_CARRIER'),
+                              lit('-'), col('DEP_TIME')))
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC 
-# MAGIC Saving to blob storage
+# MAGIC ## Clean Nulls in Delay classification column
 
 # COMMAND ----------
 
-df_final.write.mode('overwrite').parquet(f"{blob_url}/joined_data{data_size}")
+df_final = df_final.fillna(1, ['DEP_DEL15'])
+df_final = df_final.fillna(0, ['HourlyPrecipitation'])
 
 # COMMAND ----------
 
+df_final.select('ORIGIN').count() # full data - 40933735, 3m data - 1353640
 
+# COMMAND ----------
+
+display(df_final)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ### Save to blob storage
+
+# COMMAND ----------
+
+if data_size == '':
+    datalabel = '_all'
+else:
+    datalabel = data_size
+
+df_final.write.mode('overwrite').parquet(f"{blob_url}/joined_data{datalabel}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC 3m data ran in 3 mins from start to finish (including some unneccesary commands)
+# MAGIC All data ran in 11 mins from start to finish
