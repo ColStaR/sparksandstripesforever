@@ -570,6 +570,8 @@
 # MAGIC %md
 # MAGIC 
 # MAGIC # Link to In-Class Presentation Slides
+# MAGIC 
+# MAGIC [Presentation Link in Google Slides](https://docs.google.com/presentation/d/1-Yc9jgz9TPdmsvAWvPCFchSAAOvipdvYbo6E6HiaK_s/edit#slide=id.g18d7e4d3627_1_1247)
 
 # COMMAND ----------
 

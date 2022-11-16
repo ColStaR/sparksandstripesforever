@@ -69,6 +69,8 @@ df_airlines_raw = spark.read.parquet(f"{data_BASE_DIR}parquet_airlines_data/")
 df_airlines = df_airlines_raw.distinct()
 display(df_airlines)
 
+df_all = spark.read.parquet(f"{blob_url}/joined_data_all")
+
 print("**Flight Data Loaded")
 
 # COMMAND ----------
@@ -488,8 +490,19 @@ display(df_airlines_null_counts)
 
 # COMMAND ----------
 
-df_airlines_null_percentage = df_airlines_null_counts / df_airlines.count()
+df_airlines_null_percentage = df_airlines_null_counts.select("TAIL_NUM", "DEP_TIME", "DEP_DEL15", "CANCELLATION_CODE", "CRS_ELAPSED_TIME")
 display(df_airlines_null_percentage)
+
+# df_airlines.count() = 42430592
+# TAIL_NUM = 242827 = 0.572%
+# DEP_TIME = 852812 = 2.009%
+# DEP_DEL15 = 857939 = 2.021%
+# CANCELLATION_CODE = 41556551 = 97.940%
+# CRS_ELAPSED_TIME = 170 0.00004%
+
+# COMMAND ----------
+
+print(df_airlines.count())
 
 # COMMAND ----------
 
@@ -544,6 +557,24 @@ df2 = df_joined_data_all.select([count(when(col(c).contains('None') | \
                            )).alias(c)
                     for c in all_cols_except_timestamp])
 display(df2)
+
+# COMMAND ----------
+
+features = ['QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_ID', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_WAC', 'DEST_AIRPORT_ID', 'DEST_AIRPORT_SEQ_ID', 'DEST_WAC', 'DEP_TIME', 'DEP_DEL15', 'CANCELLED', 'CRS_ELAPSED_TIME', 'DISTANCE', 'YEAR', 'DATE', 'ELEVATION', 'SOURCE', 'HourlyDewPointTemperature', 'HourlyDryBulbTemperature', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'DATE_HOUR']
+
+df2 = df_joined_data_all.select([count(when(col(c).contains('None') | \
+                            col(c).contains('NULL') | \
+                            (col(c) == '' ) | \
+                            col(c).isNull() | \
+                            isnan(c), c 
+                           )).alias(c)
+                    for c in features])
+
+display(df2)
+
+# COMMAND ----------
+
+df2.show()
 
 # COMMAND ----------
 
