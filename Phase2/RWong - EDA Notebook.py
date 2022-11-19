@@ -506,6 +506,11 @@ print(df_airlines.count())
 
 # COMMAND ----------
 
+display(df_airlines.filter(col("YEAR") == 2021))
+display(df_joined_data_all.filter(col("YEAR") == 2021))
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC 
 # MAGIC # Joined Data EDA

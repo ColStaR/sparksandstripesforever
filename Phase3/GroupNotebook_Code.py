@@ -475,7 +475,3 @@ display(selected)
 evaluator = BinaryClassificationEvaluator(labelCol = "DEP_DEL15")
 
 evaluator.evaluate(predictions)
-
-# COMMAND ----------
-
-
