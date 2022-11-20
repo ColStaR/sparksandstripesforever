@@ -1,4 +1,8 @@
 # Databricks notebook source
+
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC 
 # MAGIC EDA Steps:
