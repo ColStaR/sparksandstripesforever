@@ -73,133 +73,10 @@ print("**Data Frames Loaded")
 
 # COMMAND ----------
 
-# To Do:
-# splite 2021 data and rerun all analysis
-
-# COMMAND ----------
-
 # MAGIC %md 
 # MAGIC ### EDA Highlights
 # MAGIC 1. Flights data
 # MAGIC 2. Joined dataset
-
-# COMMAND ----------
-
-df_all.printSchema()
-
-# COMMAND ----------
-
-# MAGIC %md Categorical Feature Analysis
-
-# COMMAND ----------
-
-#Clean up Dep Delay 
-mean_val=df_all.select(mean(df_all.DEP_DELAY)).collect()
-avg = mean_val[0][0]
-df_all = df_all.na.fill(avg,subset=['DEP_DELAY'])
-
-# Re-create DEP_DELAY_NEW with nulls cleaned up - don't care about how early a plane departed so force to 0
-df_all = df_all.withColumn(
-    "DEP_DELAY2",
-    F.when((df_all["DEP_DELAY"]) < 0, 0)
-    .otherwise(df_all['DEP_DELAY'])
-)
-
-# COMMAND ----------
-
-# cat_fields = ['QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'OP_UNIQUE_CARRIER','TAIL_NUM' 'ORIGIN', 'DEST', 'ORIGIN_WAC', 'DEST_WAC', 'YEAR']
-
-# COMMAND ----------
-
-display(df_all.limit(10))
-
-# COMMAND ----------
-
-# Analyze airline effectiveness: are certain airlines better at managing delays in others?
-# Task: review percentage of airline delays across all flights completed by an airline
-
-
-# as time permits, look into better coding practice with frequency table
-# https://runawayhorse001.github.io/LearningApacheSpark/exploration.html
-
-# Create temp table to store how many flights were delayed from a carrier
-tab = df_all.select(['OP_UNIQUE_CARRIER','DEP_DEL15']).\
-   groupBy('OP_UNIQUE_CARRIER').\
-   agg(F.sum('DEP_DEL15').alias('TotalDelay'))
-
-
-# COMMAND ----------
-
-display(tab_flight)
-
-# COMMAND ----------
-
-# Create temp table to store how many total flights were completedfrom a carrier
-tab_flight = df_all.select(['OP_UNIQUE_CARRIER','flight_id']).\
-    groupBy('OP_UNIQUE_CARRIER').\
-    agg(F.count('flight_id').alias('TotalFlight'))
-
-# COMMAND ----------
-
-tab_flight = tab_flight.withColumnRenamed("OP_UNIQUE_CARRIER","OP_UNIQUE_CARRIER2")
-
-# COMMAND ----------
-
-display(tab)
-
-# COMMAND ----------
-
-# bring the temp tables for airline together 
-tab_airline_effect = tab.join(tab_flight, tab.OP_UNIQUE_CARRIER==tab_flight.OP_UNIQUE_CARRIER2, 'inner')
-
-# COMMAND ----------
-
-display(tab_airline_effect)
-
-# COMMAND ----------
-
-# calculate percentage delay from airline
-tab_airline_effect = tab_airline_effect.withColumn("perc_delay", 
-                                                   ((tab_airline_effect["TotalDelay"] / tab_airline_effect["TotalFlight"])*100)
-                                                  )
-
-# COMMAND ----------
-
-display(tab_airline_effect.sort(F.desc("perc_delay"))
-
-# COMMAND ----------
-
-tmp_airline = tab_airline_effect.toPandas()
-tmp_airline
-
-# COMMAND ----------
-
-tmp_airline.describe()
-
-# COMMAND ----------
-
-tmp_airline = tmp_airline.set_index('OP_UNIQUE_CARRIER')
-tmp_airline
-
-# COMMAND ----------
-
-df_tmp = pd.DataFrame({'lab': tmp_airline['OP_UNIQUE_CARRIER2'], 'val': tmp_airline['perc_delay']})
-df_tmp.plot.bar(x='lab', y='val')  
-
-# COMMAND ----------
-
-axes = tmp_airline[['TotalFlight', 'perc_delay']].plot.bar(
-    rot=1, subplots=True)
-axes[1].legend(loc=2)
-
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-display(tab_airline_effect.sort(F.desc("perc_delay")))
 
 # COMMAND ----------
 
@@ -213,12 +90,12 @@ display(df_flights.limit(10))
 
 # COMMAND ----------
 
-# # Examine the relationship between records in the dataset
-# # get the size of the full dataset = 74,177,433
-# print("size of the full dataset:", df_flights.count())
+# Examine the relationship between records in the dataset
+# get the size of the full dataset = 74,177,433
+print("size of the full dataset:", df_flights.count())
 
-# # get the size of the number of unique records in the dataset 
-# print("size of the unique records in the dataset full dataset:", df_flights.distinct().count())
+# get the size of the number of unique records in the dataset 
+print("size of the unique records in the dataset full dataset:", df_flights.distinct().count())
 
 # COMMAND ----------
 
@@ -245,7 +122,7 @@ print("distinct ORIGIN_WAC: ",df_flights1.select("ORIGIN_WAC").distinct().count(
 # COMMAND ----------
 
 # quick examination of the target variable
-# df_flights1.groupBy('DEP_DEL15').count().show()
+df_flights1.groupBy('DEP_DEL15').count().show()
 
 # COMMAND ----------
 
@@ -253,7 +130,7 @@ print("distinct ORIGIN_WAC: ",df_flights1.select("ORIGIN_WAC").distinct().count(
 # the following cells dive deep into these airport identifying fields
 
 # do these columns have the same code for some airports?
-# print(df_flights1.filter(col("DEST_AIRPORT_ID") == col("DEST_AIRPORT_SEQ_ID")).count())
+print(df_flights1.filter(col("DEST_AIRPORT_ID") == col("DEST_AIRPORT_SEQ_ID")).count())
 
 # COMMAND ----------
 
@@ -275,8 +152,8 @@ df_flights1.groupBy("ORIGIN_AIRPORT_ID") \
 
 # COMMAND ----------
 
-# print("Unique origin count (expect 388): ", df_flights1.select("ORIGIN_AIRPORT_ID","ORIGIN").distinct().count())
-# print("Unique dest count (expect 386): ", df_flights1.select("DEST_AIRPORT_ID","DEST").distinct().count())
+print("Unique origin count (expect 388): ", df_flights1.select("ORIGIN_AIRPORT_ID","ORIGIN").distinct().count())
+print("Unique dest count (expect 386): ", df_flights1.select("DEST_AIRPORT_ID","DEST").distinct().count())
 
 # COMMAND ----------
 
@@ -316,14 +193,6 @@ print(df_all.count())
 
 # COMMAND ----------
 
-display(df_all)
-
-# COMMAND ----------
-
-# TO Do: parse dataset so impute is only done for training dataset
-
-# COMMAND ----------
-
 # fix airline nulls
 mean_val=df_all.select(mean(df_all.CRS_ELAPSED_TIME)).collect()
 avg = mean_val[0][0]
@@ -332,11 +201,6 @@ df_all = df_all.na.fill(avg,subset=['CRS_ELAPSED_TIME'])
 mean_val=df_all.select(mean(df_all.DISTANCE)).collect()
 avg = mean_val[0][0]
 df_all = df_all.na.fill(avg,subset=['DISTANCE'])
-
-mean_val=df_all.select(mean(df_all.DEP_DELAY)).collect()
-avg = mean_val[0][0]
-df_all = df_all.na.fill(avg,subset=['DEP_DELAY'])
-
 
 # COMMAND ----------
 
@@ -387,19 +251,37 @@ df_all = df_all.na.fill(avg,subset=['HourlyWindSpeed'])
 
 # COMMAND ----------
 
+# Run correlation analysis
+df_values2 = df_all.select('DEP_DEL15','QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'CRS_ELAPSED_TIME', 'DISTANCE','ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed')
+df_values2.select([count(when(col('DEP_DEL15').isNull(),True))]).show()
+
+# convert to vector column first
+vector_col = "corr_features"
+assembler = VectorAssembler(inputCols=df_values2.columns, outputCol=vector_col)
+df_vector = assembler.transform(df_values2).select(vector_col)
+
+# get correlation matrix
+matrix = Correlation.corr(df_vector,vector_col).collect()[0][0] 
+corr_matrix = matrix.toArray().tolist() 
+
+corr_matrix_df = pd.DataFrame(data=corr_matrix, columns = df_values2.columns, index=df_values2.columns) 
+corr_matrix_df .style.background_gradient(cmap='coolwarm').set_precision(2)
+
+# COMMAND ----------
+
 # MAGIC %md 
 # MAGIC ### Feature Engineering
 
 # COMMAND ----------
 
-# # Feature 1 (Analysis ID):  Create unique flight identifier
-# df_all = df_all.withColumn("flight_id",
-#                      F.concat(F.col("ORIGIN_AIRPORT_ID"),
-#                               F.lit("-"), F.col("DEST_AIRPORT_ID"),
-#                               F.lit("-"), F.col("FL_DATE"),
-#                               F.lit("-"), F.col("OP_CARRIER_FL_NUM"),
-#                               F.lit("-"), F.col("OP_UNIQUE_CARRIER"),
-#                               F.lit("-"), F.col("DEP_TIME")))
+# Feature 1 (Analysis ID):  Create unique flight identifier
+df_all = df_all.withColumn("flight_id",
+                     F.concat(F.col("ORIGIN_AIRPORT_ID"),
+                              F.lit("-"), F.col("DEST_AIRPORT_ID"),
+                              F.lit("-"), F.col("FL_DATE"),
+                              F.lit("-"), F.col("OP_CARRIER_FL_NUM"),
+                              F.lit("-"), F.col("OP_UNIQUE_CARRIER"),
+                              F.lit("-"), F.col("DEP_TIME")))
 
 # COMMAND ----------
 
@@ -418,7 +300,7 @@ df_all = df_all.sort(df_all.OP_UNIQUE_CARRIER.asc(),df_all.FL_DATE.asc(),df_all.
 
 # Helper Features
 # Create partition key
-w = Window.partitionBy("FL_DATE", "TAIL_NUM").orderBy("DEP_TIME_CLEANED")
+w = Window.partitionBy("FL_DATE", "TAIL_NUM").orderBy("DEP_TIME")
 
 # create columns over the partition key such that we obtain delays from the prior flight 
 # also grab the 2 flight prior in case the difference between an aircraft's flights is within 2 hrs
@@ -428,9 +310,9 @@ df_all = df_all.withColumn("is_1prev_delayed", is_1prev_delayed)
 df_all = df_all.withColumn("is_2prev_delayed", is_2prev_delayed)
 
 # create temp helper data to see if there is a need to run 2 flights prior to avoid data leakage
-prev_dep_time = F.lag("DEP_TIME_CLEANED", 1).over(w)
+prev_dep_time = F.lag("DEP_TIME", 1).over(w)
 df_all = df_all.withColumn("prev_dep_time", prev_dep_time)
-df_all = df_all.withColumn("dep_time_diff", (df_all["DEP_TIME_CLEANED"] - df_all["prev_dep_time"]))
+df_all = df_all.withColumn("dep_time_diff", (df_all["DEP_TIME"] - df_all["prev_dep_time"]))
 
 # all features created in this cell are helper features that will not be selected for modeling
 
@@ -438,7 +320,7 @@ df_all = df_all.withColumn("dep_time_diff", (df_all["DEP_TIME_CLEANED"] - df_all
 
 # check if there is a need to handle data leakage. 
 # will need to handle leakage if the count is > 0
-# print(df_all.filter(col("prev_dep_time") < 200).count())
+print(df_all.filter(col("prev_dep_time") < 200).count())
 
 # COMMAND ----------
 
@@ -452,60 +334,7 @@ df_all = df_all.withColumn(
     .otherwise(df_all['is_2prev_delayed'])
 )
 
-# replace null with 0, meaning first flight of the date (with null) is not delayed
-df_all = df_all.na.fill(value = 0,subset=['is_prev_delayed'])
-
-# COMMAND ----------
-
-display(df_all.select("flight_id", "FL_DATE", "TAIL_NUM","DEP_DEL15",
-                      "DEP_TIME_CLEANED", "is_prev_delayed" ).limit(10)) 
-
-# COMMAND ----------
-
-# Run Pearson correlation analysis
-
-
-# Select features to run corelati9on against
-df_values2 = df_all.select('DEP_DELAY', 'DEP_DEL15', 'QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'CRS_ELAPSED_TIME', 'DISTANCE', 'is_prev_delayed', 'ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed')
-
-# convert to vector column first
-vector_col = "corr_features"
-assembler = VectorAssembler(inputCols=df_values2.columns, outputCol=vector_col)
-df_vector = assembler.transform(df_values2).select(vector_col)
-
-# get correlation matrix
-matrix = Correlation.corr(df_vector,vector_col).collect()[0][0] 
-corr_matrix = matrix.toArray().tolist() 
-
-corr_matrix_pearson = pd.DataFrame(data=corr_matrix, columns = df_values2.columns, index=df_values2.columns) 
-corr_matrix_pearson[['DEP_DELAY', 'DEP_DEL15']].sort_values(by=['DEP_DEL15'], ascending=False).style.background_gradient(cmap='coolwarm').set_precision(2)
-
-# COMMAND ----------
-
-corr_matrix_pearson[['DEP_DELAY', 'DEP_DEL15']].sort_values(by=['DEP_DEL15'], ascending=False)
-
-# COMMAND ----------
-
-# Run Spearman correlation analysis
-
-# Select features to run corelation against
-df_values2 = df_all.select('DEP_DELAY', 'DEP_DEL15', 'QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'CRS_ELAPSED_TIME', 'DISTANCE','is_prev_delayed', 'ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed')
-
-# convert to vector column first
-vector_col = "corr_features"
-assembler = VectorAssembler(inputCols=df_values2.columns, outputCol=vector_col)
-df_vector = assembler.transform(df_values2).select(vector_col)
-
-# get correlation matrix
-matrix_spearman = Correlation.corr(df_vector,vector_col, method='spearman').collect()[0][0] 
-corr_matrix_spearman = matrix_spearman.toArray().tolist() 
-
-corr_matrix_spearman = pd.DataFrame(data=corr_matrix_spearman, columns = df_values2.columns, index=df_values2.columns) 
-corr_matrix_spearman.style.background_gradient(cmap='coolwarm').set_precision(2)
-
-# COMMAND ----------
-
-corr_matrix_pearson[['DEP_DELAY', 'DEP_DEL15']].sort_values(by=['DEP_DEL15'], ascending=False).style.background_gradient(cmap='coolwarm').set_precision(2)
+# this would be a good point to checkpoint to blob storage
 
 # COMMAND ----------
 
@@ -551,7 +380,7 @@ print(stages)
 
 #Works:
 # Removed: Date, date_hour, neighbor_call
-numericCols = ["QUARTER", "MONTH", "DAY_OF_MONTH", "DAY_OF_WEEK", "OP_CARRIER_FL_NUM", "ORIGIN_AIRPORT_ID", "ORIGIN_AIRPORT_SEQ_ID", "ORIGIN_WAC", "DEST_AIRPORT_ID", "DEST_AIRPORT_SEQ_ID", "DEST_WAC", "CRS_ELAPSED_TIME", "DISTANCE", "YEAR", "ELEVATION", "SOURCE", "HourlyDewPointTemperature", "HourlyDryBulbTemperature", "HourlyRelativeHumidity", "HourlyVisibility", "HourlyWindSpeed", "distance_to_neighbor"]
+numericCols = ["QUARTER", "MONTH", "DAY_OF_MONTH", "DAY_OF_WEEK", "OP_CARRIER_FL_NUM", "ORIGIN_AIRPORT_ID", "ORIGIN_AIRPORT_SEQ_ID", "ORIGIN_WAC", "DEST_AIRPORT_ID", "DEST_AIRPORT_SEQ_ID", "DEST_WAC", "DEP_TIME", "CANCELLED", "CRS_ELAPSED_TIME", "DISTANCE", "YEAR", "STATION", "ELEVATION", "SOURCE", "HourlyDewPointTemperature", "HourlyDryBulbTemperature", "HourlyRelativeHumidity", "HourlyVisibility", "HourlyWindSpeed", "distance_to_neighbor"]
 
 assemblerInputs = [c + "classVec" for c in categoricalColumns] + numericCols
 #assemblerInputs = numericCols
@@ -646,3 +475,7 @@ display(selected)
 evaluator = BinaryClassificationEvaluator(labelCol = "DEP_DEL15")
 
 evaluator.evaluate(predictions)
+
+# COMMAND ----------
+
+
