@@ -27,6 +27,7 @@ from pyspark.mllib.evaluation import MulticlassMetrics
 import pyspark.sql.functions as F
 from pyspark.sql.window import Window
 from pyspark.sql.functions import percent_rank
+from pyspark.ml.feature import StandardScaler
 
 from sklearn.utils import parallel_backend
 from sklearn.model_selection import cross_val_score
@@ -35,6 +36,8 @@ from sklearn import svm
 from joblibspark import register_spark
 
 import pandas as pd
+
+from datetime import datetime
 
 # COMMAND ----------
 
@@ -58,6 +61,43 @@ spark.conf.set(
 
 # COMMAND ----------
 
+def resetMetricsToAzure_LR():
+    backup_metrics = spark.read.parquet(f"{blob_url}/logistic_regression_metrics")
+    backup_date_string = str(datetime.utcnow()).replace(" ", "-").replace(":", "-").replace(".", "-")
+    backup_metrics.write.parquet(f"{blob_url}/metrics_backups/logistic_regression_metrics-{backup_date_string}")
+    
+    columns = ["date_time","precision", "f1", "recall", "accuracy", "regParam", "elasticNetParam", "maxIter", "threshold"]
+    data = [(datetime.utcnow(), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0)]
+    rdd = spark.sparkContext.parallelize(data)
+    dfFromRDD = rdd.toDF(columns)
+    
+    dfFromRDD.write.mode('overwrite').parquet(f"{blob_url}/logistic_regression_metrics")
+    print("Metrics Reset")
+
+def saveMetricsToAzure_LR(input_model, input_metrics):
+    
+    columns = ["date_time","precision", "f1", "recall", "accuracy", "regParam", "elasticNetParam", "maxIter", "threshold"]
+    data = [(datetime.utcnow(), input_metrics.precision(1), input_metrics.fMeasure(1.0,1.0), \
+             input_metrics.recall(1), input_metrics.accuracy, input_model.getRegParam(), \
+             input_model.getElasticNetParam(), input_model.getMaxIter(), input_model.getThreshold())]
+    rdd = spark.sparkContext.parallelize(data)
+    dfFromRDD = rdd.toDF(columns)
+    
+    dfFromRDD.write.mode('append').parquet(f"{blob_url}/logistic_regression_metrics")
+    print("Metrics Saved Successfully!")
+
+    
+# WARNING: Will Delete Current Metrics
+#resetMetricsToAzure_LR()
+# WARNING: Will Delete Current Metrics
+
+# COMMAND ----------
+
+#current_metrics = spark.read.parquet(f"{blob_url}/logistic_regression_metrics")
+#display(current_metrics)
+
+# COMMAND ----------
+
 # Load Dataframes
 print("**Loading Data")
 
@@ -76,17 +116,11 @@ display(df_joined_data_all)
 #df_joined_data_2y = df_joined_data_all.filter(col("YEAR") <= 2016).cache()
 #display(df_joined_data_2y)
 
-#df_joined_data_pre2021 = df_joined_data_all.filter(col("YEAR") < 2021).cache()
-#display(df_joined_data_2y)
+df_joined_data_pre2021 = df_joined_data_all.filter(col("YEAR") < 2021).cache()
+display(df_joined_data_pre2021)
 
-#df_joined_data_2021 = df_joined_data_all.filter(col("YEAR") == 2021).cache()
-#display(df_joined_data_2y)
-
-#df_joined_data_2015_2020 = df_joined_data_all.filter(col("YEAR") < 2021)
-#display(df_joined_data_all)
-
-#df_joined_data_2021 = df_joined_data_all.filter(col("YEAR") == 2021)
-#display(df_joined_data_2021)
+df_joined_data_2021 = df_joined_data_all.filter(col("YEAR") == 2021)
+display(df_joined_data_2021)
 
 print("**Data Frames Loaded")
 
@@ -97,7 +131,7 @@ print("**Data Frames Loaded")
 # Fills in NA values for cancelled flights.
 
 #df_joined_data_3m = df_joined_data_3m.na.fill(value = 1,subset=["DEP_DEL15"])
-df_joined_data_2y = df_joined_data_2y.na.fill(value = 1,subset=["DEP_DEL15"])
+#df_joined_data_2y = df_joined_data_2y.na.fill(value = 1,subset=["DEP_DEL15"])
 df_joined_data_all = df_joined_data_all.na.fill(value = 1,subset=["DEP_DEL15"])
 df_joined_data_pre2021 = df_joined_data_pre2021.na.fill(value = 1,subset=["DEP_DEL15"])
 df_joined_data_2021 = df_joined_data_2021.na.fill(value = 1,subset=["DEP_DEL15"])
@@ -147,6 +181,8 @@ for categoricalCol in categoricalColumns:
 numericCols = ['CRS_ELAPSED_TIME', 'DISTANCE','ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed']
 # Features Not Included: 'DEP_DATETIME','DATE', 'HourlyWindGustSpeed', 'MonthlyMeanTemperature', 'MonthlyMaximumTemperature', 'MonthlyGreatestSnowDepth', 'MonthlyGreatestSnowfall', 'MonthlyTotalSnowfall', 'MonthlyTotalLiquidPrecipitation', 'MonthlyMinimumTemperature', 'DATE_HOUR', 'time_zone_id', 'UTC_DEP_DATETIME_LAG', 'UTC_DEP_DATETIME', 'HourlyPressureChange', 'distance_to_neighbor', 'neighbor_lat', 'neighbor_lon'
 
+# scaler = StandardScaler(inputCol=numericCols, outputCol="scaledFeatures", withStd=True, withMean=False)
+
 assemblerInputs = [c + "classVec" for c in categoricalColumns] + numericCols
 
 # Adds Features vector to data frames as part of pipeline.
@@ -176,12 +212,16 @@ pipelineModel = partialPipeline.fit(df_joined_data_all)
 preppedDataDF = pipelineModel.transform(df_joined_data_all)
 
 # Apply pipeline to Pre-2021
-#pipelineModel = partialPipeline.fit(df_joined_data_pre2021)
-#preppedDataDF = pipelineModel.transform(df_joined_data_pre2021)
+pipelineModel_pre2021 = partialPipeline.fit(df_joined_data_pre2021)
+preppedDataDF_pre2021 = pipelineModel_pre2021.transform(df_joined_data_pre2021)
 
 # Apply pipeline to 2021
-#pipelineModel_2021 = partialPipeline.fit(df_joined_data_2021)
-#preppedDataDF_2021 = pipelineModel_2021.transform(df_joined_data_2021)
+pipelineModel_2021 = partialPipeline.fit(df_joined_data_2021)
+preppedDataDF_2021 = pipelineModel_2021.transform(df_joined_data_2021)
+
+#display(preppedDataDF)
+
+# COMMAND ----------
 
 #display(preppedDataDF)
 
@@ -208,12 +248,11 @@ preppedDataDF = pipelineModel.transform(df_joined_data_all)
 
 # COMMAND ----------
 
-def createLinearRegressionModel(num_iterations, trainingData_input):
+def createLogisticRegressionModel(trainingData_input, maxIter_input):
     """
     Creates Logistic Regression model trained on trainingData_input.
-    I realize now that this function is misnamed. Whoops!
     """
-    lr = LogisticRegression(num_iterations, labelCol="DEP_DEL15", featuresCol="features")
+    lr = LogisticRegression(labelCol="DEP_DEL15", featuresCol="features", maxIter = maxIter_input)
     lrModel = lr.fit(trainingData_input)
     return lrModel
 
@@ -237,7 +276,7 @@ def runLogisticRegression(linearRegressionModel, testData):
     
     return metrics
     
-def runBlockingTimeSeriesCrossValidation(dataFrameInput):
+def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input, elasticNetParam_input, maxIter_input, threshold_input):
     """
     Conducts the Blocking Time Series Cross Validation.
     Accepts the full dataFrame of all years. 
@@ -280,18 +319,18 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput):
         
         # Create and train a logistic regression model for the year based on training data.
         # Note: createLinearRegressionModel() function would not work here for some reason.
-        lr = LogisticRegression(labelCol="DEP_DEL15", featuresCol="features", maxIter=10)
+        lr = LogisticRegression(labelCol="DEP_DEL15", featuresCol="features", regParam = regParam_input, elasticNetParam = elasticNetParam_input, maxIter = maxIter_input, threshold = threshold_input)
         lrModel = lr.fit(trainingData)
 
         currentYearMetrics = runLogisticRegression(lrModel, trainingTestData)
         
         # Print the year's data and evaluation metrics
-        print(f"\n - {year}")
-        print("trainingData Count:", trainingData.count())
-        print("trainingTestData Count:", trainingTestData.count())
+#        print(f"\n - {year}")
+#        print("trainingData Count:", trainingData.count())
+#        print("trainingTestData Count:", trainingTestData.count())
 #        print("categoricalColumns =", categoricalColumns)
 #        print("numericalCols =", numericCols)
-        reportMetrics(currentYearMetrics)
+#        reportMetrics(currentYearMetrics)
         
         # Compare and store top models and metrics.
         if topMetrics == None:
@@ -307,14 +346,14 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput):
     # TODO: Ensemble models across all years?
     
     # Print the metrics of the best model from the cross validated years.
-    print("\n** Best Metrics **")
-    print("topYear = %s" % topYear)
-    print("categoricalColumns =", categoricalColumns)
-    print("numericalCols =", numericCols)
-    reportMetrics(topMetrics)
-    print("Top Model:", topModel)
+#    print("\n** Best Metrics **")
+#    print("topYear = %s" % topYear)
+#    print("categoricalColumns =", categoricalColumns)
+#    print("numericalCols =", numericCols)
+#    reportMetrics(topMetrics)
+#    print("Top Model:", topModel)
     
-    
+
     
     # Prepare 2021 Test Data
     currentYearDF = dataFrameInput.filter(col("YEAR") == 2021).cache()
@@ -331,18 +370,60 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput):
     testMetrics = runLogisticRegression(topModel, testDataSet)
 
     print(f"\n - 2021")
+    print("Model Parameters:")
+    print("regParam:", lr.getRegParam())
+    print("elasticNetParam:", lr.getElasticNetParam())
+    print("maxIter:", lr.getMaxIter())
+    print("threshold:", lr.getThreshold())
+    print("Weights Col:", lr.getWeightCol())
     print("testDataSet Count:", testDataSet.count())
-#        print("categoricalColumns =", categoricalColumns)
-#        print("numericalCols =", numericCols)
     reportMetrics(testMetrics)
+    saveMetricsToAzure_LR(testModel, testMetrics)
     
 # TODO: Way to save results from evaluation to a file or RDD? Would allow for easier automation for gridsearch.
-    
 
 # COMMAND ----------
 
-# 55 Minutes for Full Data
-runBlockingTimeSeriesCrossValidation(preppedDataDF)
+# Hyperparameter Tuning Parameter Grid
+# Each CV takes one hour. Do the math.
+
+#regParamGrid = [0.01, 0.5, 2.0]
+#elasticNetParamGrid = [0.0, 0.5, 1.0]
+#maxIterGrid = [1, 5, 10]
+regParamGrid = [0]
+elasticNetParamGrid = [0]
+maxIterGrid = [10]
+thresholdGrid = [0.3, 0.4, 0.5, 0.6, 0.7]
+
+for regParam in regParamGrid:
+    for elasticNetParam in elasticNetParamGrid:
+        for maxIter in maxIterGrid:
+            for threshold in thresholdGrid:
+                runBlockingTimeSeriesCrossValidation(preppedDataDF, regParam, elasticNetParam, maxIter, threshold)
+    
+
+#runBlockingTimeSeriesCrossValidation(preppedDataDF, .01, 0.0, 1, .5)
+#runBlockingTimeSeriesCrossValidation(preppedDataDF, .01, 0.0, 1, .4)
+#runBlockingTimeSeriesCrossValidation(preppedDataDF, .01, 0.0, 1, .6)
+
+# COMMAND ----------
+
+# 22 minutes
+testPreppedData_2017 = preppedDataDF.filter(col("YEAR") == 2017)
+testPreppedData_2021 = preppedDataDF.filter(col("YEAR") == 2021)
+print("Data Loaded")
+
+testModel = createLogisticRegressionModel(testPreppedData_2017, 10)
+print(testModel)
+testMetrics = runLogisticRegression(testModel, testPreppedData_2021)
+print(testMetrics)
+reportMetrics(testMetrics)
+saveMetricsToAzure_LR(testModel, testMetrics)
+
+# COMMAND ----------
+
+current_metrics = spark.read.parquet(f"{blob_url}/logistic_regression_metrics")
+display(current_metrics)
 
 # COMMAND ----------
 
@@ -352,11 +433,26 @@ runBlockingTimeSeriesCrossValidation(preppedDataDF)
 # MAGIC 
 # MAGIC 11/16/22
 # MAGIC 55 minutes
+# MAGIC regParam = 0.0
+# MAGIC elasticNetParam = 0.0
+# MAGIC maxIter = 10
+# MAGIC threshold = .5
 # MAGIC testDataSet Count: 5771706
 # MAGIC Precision = 0.029235971681133347
 # MAGIC F1 = 0.05415838783534103
 # MAGIC Recall = 0.36706913430609295
 # MAGIC Accuracy = 0.80939517709322
+# MAGIC 
+# MAGIC 11/20/22
+# MAGIC regParam = .01
+# MAGIC elasticNetParam = 0.0
+# MAGIC maxIter = 1
+# MAGIC threshold = .5
+# MAGIC testDataSet Count: 5771706
+# MAGIC Precision = 0.013125369557125526
+# MAGIC F1 = 0.025499071285593207
+# MAGIC Recall = 0.4452561639953396
+# MAGIC Accuracy = 0.8127451398252094
 
 # COMMAND ----------
 
