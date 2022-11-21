@@ -61,9 +61,12 @@ spark.conf.set(
 
 # COMMAND ----------
 
+def getCurrentDateTimeFormatted():
+    return str(datetime.utcnow()).replace(" ", "-").replace(":", "-").replace(".", "-")
+
 def resetMetricsToAzure_LR():
     backup_metrics = spark.read.parquet(f"{blob_url}/logistic_regression_metrics")
-    backup_date_string = str(datetime.utcnow()).replace(" ", "-").replace(":", "-").replace(".", "-")
+    backup_date_string = getCurrentDateTimeFormatted()
     backup_metrics.write.parquet(f"{blob_url}/metrics_backups/logistic_regression_metrics-{backup_date_string}")
     
     columns = ["date_time","precision", "f1", "recall", "accuracy", "regParam", "elasticNetParam", "maxIter", "threshold"]
@@ -90,11 +93,6 @@ def saveMetricsToAzure_LR(input_model, input_metrics):
 # WARNING: Will Delete Current Metrics
 #resetMetricsToAzure_LR()
 # WARNING: Will Delete Current Metrics
-
-# COMMAND ----------
-
-#current_metrics = spark.read.parquet(f"{blob_url}/logistic_regression_metrics")
-#display(current_metrics)
 
 # COMMAND ----------
 
@@ -212,12 +210,12 @@ pipelineModel = partialPipeline.fit(df_joined_data_all)
 preppedDataDF = pipelineModel.transform(df_joined_data_all)
 
 # Apply pipeline to Pre-2021
-pipelineModel_pre2021 = partialPipeline.fit(df_joined_data_pre2021)
-preppedDataDF_pre2021 = pipelineModel_pre2021.transform(df_joined_data_pre2021)
+#pipelineModel_pre2021 = partialPipeline.fit(df_joined_data_pre2021)
+#preppedDataDF_pre2021 = pipelineModel_pre2021.transform(df_joined_data_pre2021)
 
 # Apply pipeline to 2021
-pipelineModel_2021 = partialPipeline.fit(df_joined_data_2021)
-preppedDataDF_2021 = pipelineModel_2021.transform(df_joined_data_2021)
+#pipelineModel_2021 = partialPipeline.fit(df_joined_data_2021)
+#preppedDataDF_2021 = pipelineModel_2021.transform(df_joined_data_2021)
 
 #display(preppedDataDF)
 
@@ -284,7 +282,9 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input, elastic
     After all cross validations, will select best model from each year, and then apply the test 2021 data against it for final evaluation.
     Prints metrics from final test evaluation at the end.
     """
-    
+    print(f"@ Starting runBlockingTimeSeriesCrossValidation")
+    print(f"@ {regParam_input}, {elasticNetParam_input}, {maxIter_input}, {threshold_input}")
+    print(f"@ {getCurrentDateTimeFormatted()}")
     topMetrics = None
     topYear = None
     topModel = None
@@ -295,8 +295,10 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input, elastic
 
     # Iterate through each of the individual years in the training data set.
     for year in listOfYears:
+        
         currentYear = year
-
+        print(f"Processing Year: {currentYear}")
+        print(f"@ {getCurrentDateTimeFormatted()}")
         currentYearDF = dataFrameInput.filter(col("YEAR") == currentYear).cache()
 
         # Adds a percentage column to each year's data frame, with the percentage corresponding to percentage of the year's time. 
@@ -315,7 +317,7 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input, elastic
         # Test set is the latter 30% of the data.
         trainingData = dataset.filter(col("DEP_DATETIME_LAG_percent") <= .70)
         trainingTestData = dataset.filter(col("DEP_DATETIME_LAG_percent") > .70)
-        display(trainingTestData)
+#        display(trainingTestData)
         
         # Create and train a logistic regression model for the year based on training data.
         # Note: createLinearRegressionModel() function would not work here for some reason.
@@ -354,7 +356,8 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input, elastic
 #    print("Top Model:", topModel)
     
 
-    
+    print(f"@ Starting Test Evaluation")
+    print(f"@ {getCurrentDateTimeFormatted()}")
     # Prepare 2021 Test Data
     currentYearDF = dataFrameInput.filter(col("YEAR") == 2021).cache()
     preppedDataDF = currentYearDF.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
@@ -365,7 +368,7 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input, elastic
 
     # Evaluate best model from cross validation against the test data frame of 2021 data, then print evaluation metrics.
     testDataSet = dataset
-    display(testDataSet)
+#    display(testDataSet)
     lr = topModel
     testMetrics = runLogisticRegression(topModel, testDataSet)
 
@@ -375,12 +378,13 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input, elastic
     print("elasticNetParam:", lr.getElasticNetParam())
     print("maxIter:", lr.getMaxIter())
     print("threshold:", lr.getThreshold())
-    print("Weights Col:", lr.getWeightCol())
+#    print("Weights Col:", lr.getWeightCol())
     print("testDataSet Count:", testDataSet.count())
     reportMetrics(testMetrics)
     saveMetricsToAzure_LR(testModel, testMetrics)
+    print(f"@ Finised Test Evaluation")
+    print(f"@ {getCurrentDateTimeFormatted()}")
     
-# TODO: Way to save results from evaluation to a file or RDD? Would allow for easier automation for gridsearch.
 
 # COMMAND ----------
 
@@ -393,18 +397,19 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input, elastic
 regParamGrid = [0]
 elasticNetParamGrid = [0]
 maxIterGrid = [10]
-thresholdGrid = [0.3, 0.4, 0.5, 0.6, 0.7]
+thresholdGrid = [0.3, 0.7]
 
 for regParam in regParamGrid:
+    print(f"! regParam = {regParam}")
     for elasticNetParam in elasticNetParamGrid:
+        print(f"! elasticNetParam = {elasticNetParam}")
         for maxIter in maxIterGrid:
+            print(f"! maxIter = {maxIter}")
             for threshold in thresholdGrid:
+                print(f"! threshold = {threshold}")
                 runBlockingTimeSeriesCrossValidation(preppedDataDF, regParam, elasticNetParam, maxIter, threshold)
-    
+print("! Job Finished!")
 
-#runBlockingTimeSeriesCrossValidation(preppedDataDF, .01, 0.0, 1, .5)
-#runBlockingTimeSeriesCrossValidation(preppedDataDF, .01, 0.0, 1, .4)
-#runBlockingTimeSeriesCrossValidation(preppedDataDF, .01, 0.0, 1, .6)
 
 # COMMAND ----------
 
