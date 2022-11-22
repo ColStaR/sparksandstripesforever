@@ -207,7 +207,7 @@ partialPipeline = Pipeline().setStages(stages)
 
 # Apply pipeline to Full Time
 pipelineModel = partialPipeline.fit(df_joined_data_all)
-preppedDataDF = pipelineModel.transform(df_joined_data_all)
+preppedDataDF = pipelineModel.transform(df_joined_data_all).cache()
 
 # Apply pipeline to Pre-2021
 #pipelineModel_pre2021 = partialPipeline.fit(df_joined_data_pre2021)
@@ -308,7 +308,7 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input, elastic
 #        display(preppedDataDF)
 
         # remove unneeded columns. All feature values are captured in "features". All the other retained features are for row tracking.
-        selectedcols = ["DEP_DEL15", "YEAR", "QUARTER", "DEP_DATETIME_LAG_percent", "features"]
+        selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
         dataset = preppedDataDF.select(selectedcols).cache()
 
 #        display(dataset)
@@ -362,7 +362,7 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input, elastic
     currentYearDF = dataFrameInput.filter(col("YEAR") == 2021).cache()
     preppedDataDF = currentYearDF.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
 #        display(preppedDataDF)
-    selectedcols = ["DEP_DEL15", "YEAR", "QUARTER", "DEP_DATETIME_LAG_percent", "features"]
+    selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
     dataset = preppedDataDF.select(selectedcols).cache()
 #        display(dataset)
 
@@ -381,7 +381,7 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input, elastic
 #    print("Weights Col:", lr.getWeightCol())
     print("testDataSet Count:", testDataSet.count())
     reportMetrics(testMetrics)
-    saveMetricsToAzure_LR(testModel, testMetrics)
+    saveMetricsToAzure_LR(lr, testMetrics)
     print(f"@ Finised Test Evaluation")
     print(f"@ {getCurrentDateTimeFormatted()}")
     
@@ -394,6 +394,7 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input, elastic
 #regParamGrid = [0.01, 0.5, 2.0]
 #elasticNetParamGrid = [0.0, 0.5, 1.0]
 #maxIterGrid = [1, 5, 10]
+
 regParamGrid = [0]
 elasticNetParamGrid = [0]
 maxIterGrid = [10]
@@ -409,6 +410,7 @@ for regParam in regParamGrid:
                 print(f"! threshold = {threshold}")
                 runBlockingTimeSeriesCrossValidation(preppedDataDF, regParam, elasticNetParam, maxIter, threshold)
 print("! Job Finished!")
+print(f"! {getCurrentDateTimeFormatted()}")
 
 
 # COMMAND ----------
@@ -458,6 +460,18 @@ display(current_metrics)
 # MAGIC F1 = 0.025499071285593207
 # MAGIC Recall = 0.4452561639953396
 # MAGIC Accuracy = 0.8127451398252094
+# MAGIC 
+# MAGIC 11/21/22
+# MAGIC Model Parameters:
+# MAGIC regParam: 0.0
+# MAGIC elasticNetParam: 0.0
+# MAGIC maxIter: 10
+# MAGIC threshold: 0.3
+# MAGIC testDataSet Count: 5771706
+# MAGIC Precision = 0.2542970733396268
+# MAGIC F1 = 0.27699824117668764
+# MAGIC Recall = 0.3041497728493967
+# MAGIC Accuracy = 0.7522193611386304
 
 # COMMAND ----------
 
