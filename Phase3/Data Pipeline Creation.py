@@ -310,30 +310,19 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input, elastic
         
         # Upscale the data such that there are roughly equal amounts of rows where DEP_DEL15 == 0 and DEP_DEL15 == 1, which aids in training.
         
-        
-        
-        
-        
-        
-        
-        
-        
         currentYearDF_upsampling_0 = currentYearDF.filter(col("DEP_DEL15") == 0)
         print(f"@- df_testData0.count() = {currentYearDF_upsampling_0.count()}")
-
         currentYearDF_upsampling_1 = currentYearDF.filter(col("DEP_DEL15") == 1)
-        print(f"@- df_testData0.count() = {currentYearDF_upsampling_1.count()}")
+        print(f"@- df_testData1.count() = {currentYearDF_upsampling_1.count()}")
 
         upsampling_ratio = (currentYearDF_upsampling_0.count() / currentYearDF_upsampling_1.count()) - 1
 
         currentYearDF_upsampling_append = currentYearDF.filter(col("DEP_DEL15") == 1).sample(fraction = upsampling_ratio, withReplacement = True, seed = 261)
         print(f"@- currentYearDF_upsampling_append.count() = {currentYearDF_upsampling_append.count()}")
 
-        currentYearDF_upsampled = currentYearDF.unionAll(currentYearDF_upsampling_append)
+        currentYearDF_upsampled = currentYearDF_upsampling_1.unionAll(currentYearDF_upsampling_append)
         print(f"@- currentYearDF_upsampled.count() = {currentYearDF_upsampled.count()}")
         
-        
-
         # Adds a percentage column to each year's data frame, with the percentage corresponding to percentage of the year's time. 
         # 0% = earliest time that year. 100% = latest time that year.
         preppedDataDF = currentYearDF_upsampled.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
