@@ -289,7 +289,7 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input, elastic
     After all cross validations, will select best model from each year, and then apply the test 2021 data against it for final evaluation.
     Prints metrics from final test evaluation at the end.
     """
-    print(f"@ Starting runBlockingTimeSeriesCrossValidation")
+    print(f"\n@ Starting runBlockingTimeSeriesCrossValidation")
     print(f"@ {regParam_input}, {elasticNetParam_input}, {maxIter_input}, {threshold_input}")
     print(f"@ {getCurrentDateTimeFormatted()}")
     topMetrics = None
@@ -307,10 +307,36 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input, elastic
         print(f"Processing Year: {currentYear}")
         print(f"@ {getCurrentDateTimeFormatted()}")
         currentYearDF = dataFrameInput.filter(col("YEAR") == currentYear).cache()
+        
+        # Upscale the data such that there are roughly equal amounts of rows where DEP_DEL15 == 0 and DEP_DEL15 == 1, which aids in training.
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        currentYearDF_upsampling_0 = currentYearDF.filter(col("DEP_DEL15") == 0)
+        print(f"@- df_testData0.count() = {currentYearDF_upsampling_0.count()}")
+
+        currentYearDF_upsampling_1 = currentYearDF.filter(col("DEP_DEL15") == 1)
+        print(f"@- df_testData0.count() = {currentYearDF_upsampling_1.count()}")
+
+        upsampling_ratio = (currentYearDF_upsampling_0.count() / currentYearDF_upsampling_1.count()) - 1
+
+        currentYearDF_upsampling_append = currentYearDF.filter(col("DEP_DEL15") == 1).sample(fraction = upsampling_ratio, withReplacement = True, seed = 261)
+        print(f"@- currentYearDF_upsampling_append.count() = {currentYearDF_upsampling_append.count()}")
+
+        currentYearDF_upsampled = currentYearDF.unionAll(currentYearDF_upsampling_append)
+        print(f"@- currentYearDF_upsampled.count() = {currentYearDF_upsampled.count()}")
+        
+        
 
         # Adds a percentage column to each year's data frame, with the percentage corresponding to percentage of the year's time. 
         # 0% = earliest time that year. 100% = latest time that year.
-        preppedDataDF = currentYearDF.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
+        preppedDataDF = currentYearDF_upsampled.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
 
 #        display(preppedDataDF)
 
@@ -398,14 +424,14 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input, elastic
 # Hyperparameter Tuning Parameter Grid
 # Each CV takes one hour. Do the math.
 
-#regParamGrid = [0.01, 0.5, 2.0]
+#regParamGrid = [0.0, 0.01, 0.5, 2.0]
 #elasticNetParamGrid = [0.0, 0.5, 1.0]
 #maxIterGrid = [1, 5, 10]
 
-regParamGrid = [0.1]
-elasticNetParamGrid = [0]
+regParamGrid = [0.0, 0.1]
+elasticNetParamGrid = [0, 0.5]
 maxIterGrid = [10]
-thresholdGrid = [0.5, 0.7, 0.9]
+thresholdGrid = [0.5]
 
 for regParam in regParamGrid:
     print(f"! regParam = {regParam}")
@@ -426,6 +452,28 @@ print(f"! {getCurrentDateTimeFormatted()}\n")
 testPreppedData_2017 = preppedDataDF.filter(col("YEAR") == 2017)
 testPreppedData_2021 = preppedDataDF.filter(col("YEAR") == 2021)
 print("Data Loaded")
+
+# Testing Upsampling
+
+currentYearDF_upsampling_0 = testPreppedData_2017.filter(col("DEP_DEL15") == 0)
+print(f"df_testData0.count() = {currentYearDF_upsampling_0.count()}")
+
+currentYearDF_upsampling_1 = testPreppedData_2017.filter(col("DEP_DEL15") == 1)
+print(f"df_testData0.count() = {currentYearDF_upsampling_1.count()}")
+
+upsampling_ratio = (currentYearDF_upsampling_0.count() / currentYearDF_upsampling_1.count()) - 1
+
+currentYearDF_upsampling_append = testPreppedData_2017.filter(col("DEP_DEL15") == 1).sample(fraction = upsampling_ratio, withReplacement = True, seed = 261)
+print(currentYearDF_upsampling_append.count())
+
+testPreppedData_2017 = testPreppedData_2017.unionAll(currentYearDF_upsampling_append)
+print(testPreppedData_2017.count())
+
+
+ 
+
+
+
 
 testModel = createLogisticRegressionModel(testPreppedData_2017, 10)
 print(testModel)
