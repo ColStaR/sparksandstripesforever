@@ -69,88 +69,17 @@ display(df_joined_data_all)
 
 # COMMAND ----------
 
-vertices = df_joined_data_all[['ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN', 'flight_id', 'UTC_DEP_DATETIME', 'DISTANCE']]
-
-# COMMAND ----------
-
-vertices = vertices.withColumnRenamed("ORIGIN_AIRPORT_SEQ_ID","id")
-#vertices.distinct()
-
-# COMMAND ----------
-
-vertices.display()
-
-# COMMAND ----------
-
-edges = df_joined_data_all[['ORIGIN_AIRPORT_SEQ_ID',  'DEST_AIRPORT_SEQ_ID', 'ORIGIN_STATE_ABR', 'DEST_STATE_ABR']]
-
-# COMMAND ----------
-
-edges = edges.withColumnRenamed("ORIGIN_AIRPORT_SEQ_ID","src")
-edges = edges.withColumnRenamed("DEST_AIRPORT_SEQ_ID","dst")
-edges.display()
+df_joined_data_all_N21 = df_joined_data_all.filter(df_joined_data_all.YEAR != "2021")
+display(df_joined_data_all_N21)
+#display(df_joined_data_all_N21.filter(df_joined_data_all.YEAR == "2021"))
 
 
 # COMMAND ----------
 
-edges.display()
+#from pyspark.sql.functions import countDistinct
 
-# COMMAND ----------
-
-from pyspark.sql.functions import countDistinct
-
-edges.select(countDistinct("src")).show()
-edges.select(countDistinct("dst")).show()
-
-
-# COMMAND ----------
-
-from graphframes import * 
-
-g = GraphFrame(vertices, edges)
-print(g)
-
-# COMMAND ----------
-
-results = g.pageRank(resetProbability=0.15, tol=0.01)
-display(results.vertices)
-
-# COMMAND ----------
-
-display(results.edges)
-
-
-# COMMAND ----------
-
-results = g.pageRank(resetProbability=0.15, tol=0.05)
-display(results.vertices)
-
-# COMMAND ----------
-
-display(results.edges)
-
-
-# COMMAND ----------
-
-results = g.pageRank(resetProbability=0.15, tol=0.10)
-display(results.vertices)
-
-# COMMAND ----------
-
-display(results.edges)
-
-# COMMAND ----------
-
-vertices = df_joined_data_all[['DEST', 'ORIGIN_AIRPORT_SEQ_ID','flight_id', 'UTC_DEP_DATETIME', 'DISTANCE']]
-vertices = vertices.withColumnRenamed("DEST","id")
-vertices.display()
-
-# COMMAND ----------
-
-edges = df_joined_data_all[['DEST', 'ORIGIN', 'ORIGIN_STATE_ABR', 'DEST_STATE_ABR']]
-edges = edges.withColumnRenamed("DEST","src")
-edges = edges.withColumnRenamed("ORIGIN","dst")
-edges.display()
+#edges.select(countDistinct("src")).show()
+#edges.select(countDistinct("dst")).show()
 
 
 # COMMAND ----------
@@ -162,37 +91,454 @@ edges.select(countDistinct("dst")).show()
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC - 621/662  Airport Sq IDs
+# MAGIC - 334 unique airport DESTs
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+
+vertices = df_joined_data_all_N21.select('DEST').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_N21.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
 g = GraphFrame(vertices, edges)
+
+# COMMAND ----------
 
 results = g.pageRank(resetProbability=0.15, tol=0.01)
 display(results.vertices)
 
 # COMMAND ----------
 
-from graphframes import * 
-
-g = GraphFrame(vertices, edges)
-
-results = g.pageRank(resetProbability=0.15, tol=0.01)
-display(results.vertices)
-#display(results.edges)
-
-# COMMAND ----------
-
-from graphframes import * 
-
-g = GraphFrame(vertices, edges)
-
-results1 = g.pageRank(resetProbability=0.15, tol=0.05)
-display(results.vertices)
 display(results.edges)
 
 # COMMAND ----------
 
 from graphframes import * 
+#Non-21
+#2015-Q1
+
+df_joined_data_all_15Q1 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2015") & (df_joined_data_all.QUARTER == "1"))
+
+vertices = df_joined_data_all_15Q1.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_15Q1.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
 
 g = GraphFrame(vertices, edges)
 
-results2 = g.pageRank(resetProbability=0.15, tol=0.10)
-display(results.vertices)
-display(results.edges)
+results15Q1 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results15Q1.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2015-Q2
+
+df_joined_data_all_15Q2 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2015") & (df_joined_data_all.QUARTER == "2"))
+
+vertices = df_joined_data_all_15Q2.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_15Q2.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results15Q2 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results15Q2.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2015-Q3
+
+df_joined_data_all_15Q3 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2015") & (df_joined_data_all.QUARTER == "3"))
+
+vertices = df_joined_data_all_15Q3.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_15Q3.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results15Q3 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results15Q3.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2015-Q4
+
+df_joined_data_all_15Q4 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2015") & (df_joined_data_all.QUARTER == "4"))
+
+vertices = df_joined_data_all_15Q4.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_15Q4.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results15Q4 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results15Q4.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2016-Q1
+
+df_joined_data_all_16Q1 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2016") & (df_joined_data_all.QUARTER == "1"))
+
+vertices = df_joined_data_all_16Q1.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_16Q1.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results16Q1 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results16Q1.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2016-Q2
+
+df_joined_data_all_16Q2 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2016") & (df_joined_data_all.QUARTER == "2"))
+
+vertices = df_joined_data_all_16Q2.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_16Q2.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results16Q2 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results16Q2.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2016-Q3
+
+df_joined_data_all_16Q3 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2016") & (df_joined_data_all.QUARTER == "3"))
+
+vertices = df_joined_data_all_16Q3.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_16Q3.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results16Q3 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results16Q3.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2016-Q4
+
+df_joined_data_all_16Q4 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2016") & (df_joined_data_all.QUARTER == "4"))
+
+vertices = df_joined_data_all_16Q4.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_16Q4.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results16Q4 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results16Q4.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2017-Q1
+
+df_joined_data_all_17Q1 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2017") & (df_joined_data_all.QUARTER == "1"))
+
+vertices = df_joined_data_all_17Q1.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+                                                        
+edges = df_joined_data_all_17Q1.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results17Q1 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results17Q1.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2017-Q2
+
+df_joined_data_all_17Q2 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2017") & (df_joined_data_all.QUARTER == "2"))
+
+vertices = df_joined_data_all_17Q2.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+                                                        
+edges = df_joined_data_all_17Q2.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results17Q2 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results17Q2.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2017-Q3
+
+df_joined_data_all_17Q3 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2017") & (df_joined_data_all.QUARTER == "3"))
+
+vertices = df_joined_data_all_17Q3.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_17Q3.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results17Q3 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results17Q3.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2017-Q4
+
+df_joined_data_all_17Q4 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2017") & (df_joined_data_all.QUARTER == "4"))
+
+vertices = df_joined_data_all_17Q4.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_17Q4.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results17Q4 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results17Q4.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2018-Q1
+
+df_joined_data_all_18Q1 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2018") & (df_joined_data_all.QUARTER == "1"))
+
+vertices = df_joined_data_all_18Q1.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_18Q1.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results18Q1 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results18Q1.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2018-Q2
+
+df_joined_data_all_18Q2 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2018") & (df_joined_data_all.QUARTER == "2"))
+
+vertices = df_joined_data_all_18Q2.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_18Q2.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results18Q2 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results18Q2.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2018-Q3
+
+df_joined_data_all_18Q3 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2018") & (df_joined_data_all.QUARTER == "3"))
+
+vertices = df_joined_data_all_18Q3.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_18Q3.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results18Q3 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results18Q3.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2018-Q4
+
+df_joined_data_all_18Q4 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2018") & (df_joined_data_all.QUARTER == "4"))
+
+vertices = df_joined_data_all_18Q4.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_18Q4.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results18Q4 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results18Q4.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2019-Q1
+
+df_joined_data_all_19Q1 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2019") & (df_joined_data_all.QUARTER == "1"))
+
+vertices = df_joined_data_all_19Q1.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_19Q1.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results19Q1 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results19Q1.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2019-Q2
+
+df_joined_data_all_19Q2 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2019") & (df_joined_data_all.QUARTER == "2"))
+
+vertices = df_joined_data_all_19Q2.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_19Q2.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results19Q2 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results19Q2.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2019-Q3
+
+df_joined_data_all_19Q3 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2019") & (df_joined_data_all.QUARTER == "3"))
+
+vertices = df_joined_data_all_19Q3.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_19Q3.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results19Q3 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results19Q3.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2019-Q4
+
+df_joined_data_all_19Q4 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2019") & (df_joined_data_all.QUARTER == "4"))
+
+vertices = df_joined_data_all_19Q4.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_19Q4.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results19Q4 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results19Q4.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2020-Q1
+
+df_joined_data_all_20Q1 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2020") & (df_joined_data_all.QUARTER == "1"))
+
+vertices = df_joined_data_all_20Q1.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_20Q1.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results20Q1 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results20Q1.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2020-Q2
+
+df_joined_data_all_20Q2 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2020") & (df_joined_data_all.QUARTER == "2"))
+
+vertices = df_joined_data_all_20Q2.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_20Q2.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results20Q2 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results20Q2.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2020-Q3
+
+df_joined_data_all_20Q3 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2020") & (df_joined_data_all.QUARTER == "3"))
+
+vertices = df_joined_data_all_20Q3.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_20Q3.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results20Q3 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results20Q3.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2020-Q4
+
+df_joined_data_all_20Q4 = df_joined_data_all_N21.filter((df_joined_data_all.YEAR == "2020") & (df_joined_data_all.QUARTER == "4"))
+
+vertices = df_joined_data_all_20Q4.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_20Q4.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results20Q4 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results20Q4.vertices)
+
+# COMMAND ----------
+
+from functools import reduce
+from pyspark.sql import DataFrame
+
+resultsByQuarterYear = [results15Q1.vertices, results15Q2.vertices, results15Q3.vertices, results15Q4.vertices,results16Q1.vertices,results16Q2.vertices,results16Q3.vertices,results16Q4.vertices,results17Q1.vertices,results17Q2.vertices,results17Q3.vertices,results17Q4.vertices,results18Q1.vertices,results18Q2.vertices,results18Q3.vertices,results18Q4.vertices,results19Q1.vertices,results19Q2.vertices,results19Q3.vertices,results19Q4.vertices,results20Q1.vertices,results20Q2.vertices,results20Q3.vertices,results20Q4.vertices ]
+
+#test = results15Q1.vertices.union(results15Q2.vertices, )
+#display(test)
+#resultsByQuarterYear = pd.concat(resultsByQuarterYear)
+#type(results15Q1.vertices)
+
+resultsByQuarterYearDF = reduce(DataFrame.union, resultsByQuarterYear)
+display(resultsByQuarterYearDF)
+
+
+# COMMAND ----------
+
+
