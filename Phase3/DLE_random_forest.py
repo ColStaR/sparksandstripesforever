@@ -165,11 +165,12 @@ preppedDataDF = pipelineModel.transform(df_joined_data_all)
 
 # COMMAND ----------
 
+# Took 52 Minutes
 rfModel = RandomForestClassifier(labelCol="DEP_DEL15", featuresCol="features", numTrees=10).fit(preppedDataDF)
 
 # COMMAND ----------
 
-display(rfModel, preppedDataDF)
+#display(rfModel, preppedDataDF)
 
 # COMMAND ----------
 
@@ -302,30 +303,38 @@ display(selected)
 metrics = MulticlassMetrics(predictions.select("DEP_DEL15", "prediction").rdd)
 #display(predictions.select("label", "prediction").rdd.collect())
 
-#TP = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 1) & (col("prediction") == 1)).count()
-#print(TP)
-#TN = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 0) & (col("prediction") == 0)).count()
-#print(TN)
-#FP = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 1) & (col("prediction") == 0)).count()
-#print(FP)
-#FN = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 0) & (col("prediction") == 1)).count()
-#print(FN)
+TP = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 1) & (col("prediction") == 1)).count()
+print(TP)
+TN = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 0) & (col("prediction") == 0)).count()
+print(TN)
+FP = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 0) & (col("prediction") == 1)).count()
+print(FP)
+FN = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 1) & (col("prediction") == 0)).count()
+print(FN)
 
-#precision = TP / (TP + FP)
-#recall = TP / (TP + FN)
-#accuracy = (TN + TP) / (TN + TP + FP + FN)
+if (TP + FP) == 0:
+    precision = 0
+else:
+    precision = TP / (TP + FP)
+    
+if (TP + FN) == 0:
+    recall = 0
+else:
+    recall = TP / (TP + FN)
+    
+accuracy = (TN + TP) / (TN + TP + FP + FN)
 
-#print("Manual Precision: ", precision)
-#print("Manual Recall: ", recall)
-#print("Manual Accuracy: ", accuracy)
+print("Manual Precision: ", precision)
+print("Manual Recall: ", recall)
+print("Manual Accuracy: ", accuracy)
 
 # Computed using MulticlassMetrics
 
 print("categoricalColumns =", categoricalColumns)
 print("numericalCols =", numericCols)
-print("Precision = %s" % metrics.precision(1))
-print("Recall = %s" % metrics.recall(1))
-print("Accuracy = %s" % metrics.accuracy)
+#print("Precision = %s" % metrics.precision(1))
+#print("Recall = %s" % metrics.recall(1))
+#print("Accuracy = %s" % metrics.accuracy)
 
 # COMMAND ----------
 

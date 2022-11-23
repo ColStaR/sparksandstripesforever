@@ -35,7 +35,11 @@ from sklearn import datasets
 from sklearn import svm
 from joblibspark import register_spark
 
+from imblearn.over_sampling import SMOTE
+from imblearn.combine import SMOTEENN
+
 import pandas as pd
+import numpy as np
 
 from datetime import datetime
 
@@ -69,7 +73,7 @@ def resetMetricsToAzure_LR():
     backup_date_string = getCurrentDateTimeFormatted()
     backup_metrics.write.parquet(f"{blob_url}/metrics_backups/logistic_regression_metrics-{backup_date_string}")
     
-    columns = ["date_time","precision", "f1", "recall", "accuracy", "regParam", "elasticNetParam", "maxIter", "threshold"]
+    columns = ["date_time","precision", "f0.5", "recall", "accuracy", "regParam", "elasticNetParam", "maxIter", "threshold"]
     data = [(datetime.utcnow(), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0)]
     rdd = spark.sparkContext.parallelize(data)
     dfFromRDD = rdd.toDF(columns)
@@ -79,8 +83,8 @@ def resetMetricsToAzure_LR():
 
 def saveMetricsToAzure_LR(input_model, input_metrics):
     
-    columns = ["date_time","precision", "f1", "recall", "accuracy", "regParam", "elasticNetParam", "maxIter", "threshold"]
-    data = [(datetime.utcnow(), input_metrics.precision(1), input_metrics.fMeasure(1.0,1.0), \
+    columns = ["date_time","precision", "f0.5", "recall", "accuracy", "regParam", "elasticNetParam", "maxIter", "threshold"]
+    data = [(datetime.utcnow(), input_metrics.precision(1), input_metrics.fMeasure(label = 1.0, beta = 0.5), \
              input_metrics.recall(1), input_metrics.accuracy, input_model.getRegParam(), \
              input_model.getElasticNetParam(), input_model.getMaxIter(), input_model.getThreshold())]
     rdd = spark.sparkContext.parallelize(data)
@@ -151,7 +155,10 @@ df_joined_data_all.printSchema()
 # Convert categorical features to One Hot Encoding
 
 categoricalColumns = ['ORIGIN', 'QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'FL_DATE', 'OP_UNIQUE_CARRIER', 'TAIL_NUM', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_STATE_ABR',  'DEST_AIRPORT_SEQ_ID', 'DEST_STATE_ABR', 'CRS_DEP_TIME', 'YEAR']
-# Features Not Included: DEP_DATETIME_LAG, 'CRS_ELAPSED_TIME', 'DISTANCE','DEP_DATETIME','DATE','ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyPressureChange', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'HourlyWindGustSpeed', 'MonthlyMeanTemperature', 'MonthlyMaximumTemperature', 'MonthlyGreatestSnowDepth', 'MonthlyGreatestSnowfall', 'MonthlyTotalSnowfall', 'MonthlyTotalLiquidPrecipitation', 'MonthlyMinimumTemperature', 'DATE_HOUR', 'distance_to_neighbor', 'neighbor_lat', 'neighbor_lon', 'time_zone_id', 'UTC_DEP_DATETIME_LAG', 'UTC_DEP_DATETIME', DEP_DEL15,  'flight_id', 'ORIGIN_AIRPORT_ID', 'DEST_AIRPORT_ID','ORIGIN_WAC', 'DEST_WAC', 'CANCELLED', 'CANCELLATION_CODE', 'SOURCE'
+# Features Not Included: DEP_DATETIME_LAG, 'CRS_ELAPSED_TIME', 'DISTANCE','DEP_DATETIME','DATE','ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyPressureChange', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'HourlyWindGustSpeed', 'MonthlyMeanTemperature', 'MonthlyMaximumTemperature', 'MonthlyGreatestSnowDepth', 'MonthlyGreatestSnowfall', 'MonthlyTotalSnowfall', 'MonthlyTotalLiquidPrecipitation', 'MonthlyMinimumTemperature', 'DATE_HOUR', 'distance_to_neighbor', 'neighbor_lat', 'neighbor_lon', 'time_zone_id', 'UTC_DEP_DATETIME_LAG', 'UTC_DEP_DATETIME', DEP_DEL15, 'ORIGIN_AIRPORT_ID', 'DEST_AIRPORT_ID','ORIGIN_WAC', 'DEST_WAC', 'CANCELLED', 'CANCELLATION_CODE', 'SOURCE'
+
+# Could not use , 'flight_id'. Leads to buffer overflow error.
+# org.apache.spark.SparkException: Job aborted due to stage failure: Task 2 in stage 57.0 failed 4 times, most recent failure: Lost task 2.3 in stage 57.0 (TID 280) (10.139.64.6 executor 0): org.apache.spark.SparkException: Kryo serialization failed: Buffer overflow. Available: 0, required: 31
 
 # Is including this data leakage? 'DEP_TIME', 'DEP_HOUR', 
 
@@ -257,7 +264,7 @@ def createLogisticRegressionModel(trainingData_input, maxIter_input):
 def reportMetrics(inputMetrics):
     """Outputs metrics (currently only for Linear Regression?)"""
     print("Precision = %s" % inputMetrics.precision(1))
-    print("F1 = %s" % inputMetrics.fMeasure(1.0,1.0))
+    print("F0.5 = %s" % inputMetrics.fMeasure(label = 1.0, beta = 0.5))
     print("Recall = %s" % inputMetrics.recall(1))
     print("Accuracy = %s" % inputMetrics.accuracy)
 
@@ -395,10 +402,10 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input, elastic
 #elasticNetParamGrid = [0.0, 0.5, 1.0]
 #maxIterGrid = [1, 5, 10]
 
-regParamGrid = [0]
+regParamGrid = [0.1]
 elasticNetParamGrid = [0]
 maxIterGrid = [10]
-thresholdGrid = [0.3, 0.7]
+thresholdGrid = [0.5, 0.7, 0.9]
 
 for regParam in regParamGrid:
     print(f"! regParam = {regParam}")
@@ -410,7 +417,7 @@ for regParam in regParamGrid:
                 print(f"! threshold = {threshold}")
                 runBlockingTimeSeriesCrossValidation(preppedDataDF, regParam, elasticNetParam, maxIter, threshold)
 print("! Job Finished!")
-print(f"! {getCurrentDateTimeFormatted()}")
+print(f"! {getCurrentDateTimeFormatted()}\n")
 
 
 # COMMAND ----------
@@ -425,7 +432,7 @@ print(testModel)
 testMetrics = runLogisticRegression(testModel, testPreppedData_2021)
 print(testMetrics)
 reportMetrics(testMetrics)
-saveMetricsToAzure_LR(testModel, testMetrics)
+#saveMetricsToAzure_LR(testModel, testMetrics)
 
 # COMMAND ----------
 
@@ -559,6 +566,24 @@ display(weightsDF)
 # MAGIC %md
 # MAGIC 
 # MAGIC # Workspace
+
+# COMMAND ----------
+
+# Experimenting with upsampling to solve data imbalance
+
+df_testData0 = df_joined_data_all.select("DEP_DEL15", "YEAR").filter(col("DEP_DEL15") == 0)
+print(df_testData0.count())
+
+df_testData1 = df_joined_data_all.select("DEP_DEL15", "YEAR").filter(col("DEP_DEL15") == 1)
+print(df_testData1.count())
+
+ratio = (df_testData0.count() / df_testData1.count()) - 1
+
+df_upsampled = df_joined_data_all.select("DEP_DEL15", "YEAR").filter(col("DEP_DEL15") == 1).sample(fraction = ratio, withReplacement = True, seed=3)
+print(df_upsampled.count())
+
+df = df_testData1.unionAll(df_upsampled)
+print(df.count())
 
 # COMMAND ----------
 
