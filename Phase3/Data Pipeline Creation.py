@@ -395,7 +395,134 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input, elastic
             topYear = year
             topModel = lrModel
         else:
-            if currentYearMetrics.precision(1) > topMetrics.precision(1):
+            if currentYearMetrics.precision(1.0) > topMetrics.precision(1.0):
+                topMetrics = currentYearMetrics
+                topYear = year
+                topModel = lrModel
+    
+    # TODO: Ensemble models across all years?
+    
+    # Print the metrics of the best model from the cross validated years.
+#    print("\n** Best Metrics **")
+#    print("topYear = %s" % topYear)
+#    print("categoricalColumns =", categoricalColumns)
+#    print("numericalCols =", numericCols)
+#    reportMetrics(topMetrics)
+#    print("Top Model:", topModel)
+    
+
+    print(f"@ Starting Test Evaluation")
+    print(f"@ {getCurrentDateTimeFormatted()}")
+    # Prepare 2021 Test Data
+    currentYearDF = dataFrameInput.filter(col("YEAR") == 2021).cache()
+    preppedDataDF = currentYearDF.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
+#        display(preppedDataDF)
+    selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
+    dataset = preppedDataDF.select(selectedcols).cache()
+#        display(dataset)
+
+    # Evaluate best model from cross validation against the test data frame of 2021 data, then print evaluation metrics.
+    testDataSet = dataset
+#    display(testDataSet)
+    lr = topModel
+    testMetrics = runLogisticRegression(topModel, testDataSet)
+
+    print(f"\n - 2021")
+    print("Model Parameters:")
+    print("regParam:", lr.getRegParam())
+    print("elasticNetParam:", lr.getElasticNetParam())
+    print("maxIter:", lr.getMaxIter())
+    print("threshold:", lr.getThreshold())
+#    print("Weights Col:", lr.getWeightCol())
+    print("testDataSet Count:", testDataSet.count())
+    reportMetrics(testMetrics)
+    saveMetricsToAzure_LR(lr, testMetrics)
+    print(f"@ Finised Test Evaluation")
+    print(f"@ {getCurrentDateTimeFormatted()}")
+    
+    
+    
+def runBlockingTimeSeriesCrossValidation_downsampling(dataFrameInput, regParam_input, elasticNetParam_input, maxIter_input, threshold_input):
+    """
+    Conducts the Blocking Time Series Cross Validation.
+    Accepts the full dataFrame of all years. 
+    Is hard coded to use pre-2021 data as training data, which it will cross validate against.
+    After all cross validations, will select best model from each year, and then apply the test 2021 data against it for final evaluation.
+    Prints metrics from final test evaluation at the end.
+    """
+    print(f"\n@ Starting runBlockingTimeSeriesCrossValidation")
+    print(f"@ {regParam_input}, {elasticNetParam_input}, {maxIter_input}, {threshold_input}")
+    print(f"@ {getCurrentDateTimeFormatted()}")
+    topMetrics = None
+    topYear = None
+    topModel = None
+    
+    # list all of the years that the data will be trained against.
+    listOfYears = dataFrameInput.select("YEAR").distinct().filter(col("YEAR") != 2021).rdd.flatMap(list).collect()
+    print("listOfYears:", listOfYears)
+
+    # Iterate through each of the individual years in the training data set.
+    for year in listOfYears:
+        
+        currentYear = year
+        print(f"Processing Year: {currentYear}")
+        print(f"@ {getCurrentDateTimeFormatted()}")
+        currentYearDF = dataFrameInput.filter(col("YEAR") == currentYear).cache()
+        
+        # Downscale the data such that there are roughly equal amounts of rows where DEP_DEL15 == 0 and DEP_DEL15 == 1, which aids in training.
+        
+        currentYearDF_downsampling_0 = currentYearDF.filter(col("DEP_DEL15") == 0)
+        print(f"@- currentYearDF_downsampling_0.count() = {currentYearDF_downsampling_0.count()}")
+        currentYearDF_downsampling_1 = currentYearDF.filter(col("DEP_DEL15") == 1)
+        print(f"@- currentYearDF_downsampling_1.count() = {currentYearDF_downsampling_1.count()}")
+
+        downsampling_ratio = (currentYearDF_downsampling_1.count() / currentYearDF_downsampling_0.count())
+
+        currentYearDF_downsampling_append = currentYearDF_downsampling_0.sample(fraction = downsampling_ratio, withReplacement = False, seed = 261)
+        
+        currentYearDF_downsampled = currentYearDF_downsampling_1.unionAll(currentYearDF_downsampling_append)
+        print(f"@- currentYearDF_downsampled.count() = {currentYearDF_downsampled.count()}")
+        
+        # Adds a percentage column to each year's data frame, with the percentage corresponding to percentage of the year's time. 
+        # 0% = earliest time that year. 100% = latest time that year.
+        preppedDataDF = currentYearDF_downsampled.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
+
+#        display(preppedDataDF)
+
+        # remove unneeded columns. All feature values are captured in "features". All the other retained features are for row tracking.
+        selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
+        dataset = preppedDataDF.select(selectedcols).cache()
+
+#        display(dataset)
+        
+        # The training set is the data from the 70% earliest data.
+        # Test set is the latter 30% of the data.
+        trainingData = dataset.filter(col("DEP_DATETIME_LAG_percent") <= .70)
+        trainingTestData = dataset.filter(col("DEP_DATETIME_LAG_percent") > .70)
+#        display(trainingTestData)
+        
+        # Create and train a logistic regression model for the year based on training data.
+        # Note: createLinearRegressionModel() function would not work here for some reason.
+        lr = LogisticRegression(labelCol="DEP_DEL15", featuresCol="features", regParam = regParam_input, elasticNetParam = elasticNetParam_input, maxIter = maxIter_input, threshold = threshold_input)
+        lrModel = lr.fit(trainingData)
+
+        currentYearMetrics = runLogisticRegression(lrModel, trainingTestData)
+        
+        # Print the year's data and evaluation metrics
+#        print(f"\n - {year}")
+#        print("trainingData Count:", trainingData.count())
+#        print("trainingTestData Count:", trainingTestData.count())
+#        print("categoricalColumns =", categoricalColumns)
+#        print("numericalCols =", numericCols)
+#        reportMetrics(currentYearMetrics)
+        
+        # Compare and store top models and metrics.
+        if topMetrics == None:
+            topMetrics = currentYearMetrics
+            topYear = year
+            topModel = lrModel
+        else:
+            if currentYearMetrics.precision(1.0) > topMetrics.precision(1.0):
                 topMetrics = currentYearMetrics
                 topYear = year
                 topModel = lrModel
@@ -467,6 +594,27 @@ for regParam in regParamGrid:
 print("! Job Finished!")
 print(f"! {getCurrentDateTimeFormatted()}\n")
 
+
+# COMMAND ----------
+
+# Downsampling Test
+
+regParamGrid = [0.0]
+elasticNetParamGrid = [0]
+maxIterGrid = [10]
+thresholdGrid = [0.5]
+
+for regParam in regParamGrid:
+    print(f"! regParam = {regParam}")
+    for elasticNetParam in elasticNetParamGrid:
+        print(f"! elasticNetParam = {elasticNetParam}")
+        for maxIter in maxIterGrid:
+            print(f"! maxIter = {maxIter}")
+            for threshold in thresholdGrid:
+                print(f"! threshold = {threshold}")
+                runBlockingTimeSeriesCrossValidation_downsampling(preppedDataDF, regParam, elasticNetParam, maxIter, threshold)
+print("! Job Finished!")
+print(f"! {getCurrentDateTimeFormatted()}\n")
 
 # COMMAND ----------
 
