@@ -97,18 +97,18 @@ def resetMetricsToAzure_RF():
     backup_metrics.write.parquet(f"{blob_url}/metrics_backups/random_forest_metrics-{backup_date_string}")
     
     columns = ["date_time","precision", "f0.5", "recall", "accuracy", "numTrees", "maxDepth", "maxBins"]
-    data = [(datetime.utcnow(), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0)]
+    data = [(datetime.utcnow(), 0.0, 0.0, 0.0, 0.0, 0, 0, 0)]
     rdd = spark.sparkContext.parallelize(data)
     dfFromRDD = rdd.toDF(columns)
     
     dfFromRDD.write.mode('overwrite').parquet(f"{blob_url}/random_forest_metrics")
     print("RF Metrics Reset")
 
-def saveMetricsToAzure_RF(input_model, input_precision, input_fPointFive, input_recall, input_accuracy):
+def saveMetricsToAzure_RF(input_precision, input_fPointFive, input_recall, input_accuracy, input_numTrees, input_maxDepth, input_maxBins):
     columns = ["date_time","precision", "f0.5", "recall", "accuracy", "numTrees", "maxDepth", "maxBins"]
     data = [(datetime.utcnow(), input_precision, input_fPointFive, \
-             input_recall, input_accuracy, input_model.numTrees(), \
-             input_model.maxDepth(), input_model.maxBins())]
+             input_recall, input_accuracy, input_numTrees, \
+             input_maxDepth, input_maxBins)]
     rdd = spark.sparkContext.parallelize(data)
     dfFromRDD = rdd.toDF(columns)
     
@@ -226,7 +226,7 @@ stages += [assembler]
 
 # COMMAND ----------
 
-# Takes about 4 minutes for Full
+# Takes about 9 minutes for Full
 
 # Create the pipeline to be applied to the dataframes
 partialPipeline = Pipeline().setStages(stages)
@@ -670,10 +670,10 @@ display(current_metrics)
 
 # COMMAND ----------
 
-def reportMetrics_rf(precision, recall, accuracy):
+def reportMetrics_rf(precision, fPointFive, recall, accuracy):
     """Outputs metrics (currently only for Linear Regression?)"""
     print("Precision = %s" % precision)
-#    print("F0.5 = %s" % inputMetrics.fMeasure(label = 1.0, beta = 0.5))
+    print("F0.5 = %s" % fPointFive)
     print("Recall = %s" % recall)
     print("Accuracy = %s" % accuracy)
 
@@ -708,7 +708,8 @@ def runRandomForest(randomForestModel, testData):
 
     accuracy = (TN + TP) / (TN + TP + FP + FN)
     
-    fPointFive = ((1 + (0.5^2)) * precision * recall) / ((0.5^2) * precision + recall)
+    # Beta = 0.5, so (1 + (0.5 ^ 2)) = 1.25. Python didn't like (0.5 ^ 2) for some reason.
+    fPointFive = (1.25 * precision * recall) / ((0.25 * precision) + recall)
     
     return precision, fPointFive, recall, accuracy
     
@@ -724,9 +725,10 @@ def runBlockingTimeSeriesCrossValidation_rf(dataFrameInput, input_numTrees, inpu
     print(f"@ {input_numTrees}, {input_maxDepth}, {input_maxBins}")
     print(f"@ {getCurrentDateTimeFormatted()}")
     
-    topPrecision = None
+    topPrecision = 0
     topYear = None
     topModel = None
+    trainingRows = 0
     
     # list all of the years that the data will be trained against.
     listOfYears = dataFrameInput.select("YEAR").distinct().filter(col("YEAR") != 2021).rdd.flatMap(list).collect()
@@ -740,24 +742,26 @@ def runBlockingTimeSeriesCrossValidation_rf(dataFrameInput, input_numTrees, inpu
         print(f"@ {getCurrentDateTimeFormatted()}")
         currentYearDF = dataFrameInput.filter(col("YEAR") == currentYear).cache()
         
-        # Upscale the data such that there are roughly equal amounts of rows where DEP_DEL15 == 0 and DEP_DEL15 == 1, which aids in training.
+        # Downsample the data such that there are roughly equal amounts of rows where DEP_DEL15 == 0 and DEP_DEL15 == 1, which aids in training.
         
-        currentYearDF_upsampling_0 = currentYearDF.filter(col("DEP_DEL15") == 0)
-        print(f"@- df_testData0.count() = {currentYearDF_upsampling_0.count()}")
-        currentYearDF_upsampling_1 = currentYearDF.filter(col("DEP_DEL15") == 1)
-        print(f"@- df_testData1.count() = {currentYearDF_upsampling_1.count()}")
+        currentYearDF_downsampling_0 = currentYearDF.filter(col("DEP_DEL15") == 0).cache()
+#        print(f"@- currentYearDF_downsampling_0.count() = {currentYearDF_downsampling_0.count()}")
+        currentYearDF_downsampling_1 = currentYearDF.filter(col("DEP_DEL15") == 1).cache()
+#        print(f"@- currentYearDF_downsampling_1.count() = {currentYearDF_downsampling_1.count()}")
 
-        upsampling_ratio = (currentYearDF_upsampling_0.count() / currentYearDF_upsampling_1.count()) - 1
+        downsampling_ratio = (currentYearDF_downsampling_1.count() / currentYearDF_downsampling_0.count())
 
-        currentYearDF_upsampling_append = currentYearDF.filter(col("DEP_DEL15") == 1).sample(fraction = upsampling_ratio, withReplacement = True, seed = 261)
-        print(f"@- currentYearDF_upsampling_append.count() = {currentYearDF_upsampling_append.count()}")
-
-        currentYearDF_upsampled = currentYearDF.unionAll(currentYearDF_upsampling_append)
-        print(f"@- currentYearDF_upsampled.count() = {currentYearDF_upsampled.count()}")
+        currentYearDF_downsampling_append = currentYearDF_downsampling_0.sample(fraction = downsampling_ratio, withReplacement = False, seed = 261)
         
+        currentYearDF_downsampled = currentYearDF_downsampling_1.unionAll(currentYearDF_downsampling_append)
+        trainingRows += currentYearDF_downsampled.count()
+#        print(f"@- currentYearDF_downsampled.count() = {currentYearDF_downsampled.count()}")
+        print(f"Finished Downsampling for {currentYear}")
+        print(f"@ {getCurrentDateTimeFormatted()}")    
+    
         # Adds a percentage column to each year's data frame, with the percentage corresponding to percentage of the year's time. 
         # 0% = earliest time that year. 100% = latest time that year.
-        preppedDataDF = currentYearDF_upsampled.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
+        preppedDataDF = currentYearDF_downsampled.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG"))).cache()
 
 #        display(preppedDataDF)
 
@@ -775,22 +779,23 @@ def runBlockingTimeSeriesCrossValidation_rf(dataFrameInput, input_numTrees, inpu
         
         # Create and train a logistic regression model for the year based on training data.
         # Note: createLinearRegressionModel() function would not work here for some reason.
+        
+        print(f"Training model for {currentYear}")
+        print(f"@ {getCurrentDateTimeFormatted()}")    
         rf = RandomForestClassifier(labelCol="DEP_DEL15", featuresCol="features", numTrees = input_numTrees, maxDepth = input_maxDepth, maxBins = input_maxBins)
         rfModel = rf.fit(trainingData)
+        print(f"Finished training model for {currentYear}")
+        print(f"@ {getCurrentDateTimeFormatted()}")    
 
-        precision, fPointFive, recall, accuracy = runRandomForest(rfModel, trainingTestData)
-            
         
-        # Print the year's data and evaluation metrics
-#        print(f"\n - {year}")
-#        print("trainingData Count:", trainingData.count())
-#        print("trainingTestData Count:", trainingTestData.count())
-#        print("categoricalColumns =", categoricalColumns)
-#        print("numericalCols =", numericCols)
-#        reportMetrics(currentYearMetrics)
+        print(f"Evaluating test training data for {currentYear}")
+        print(f"@ {getCurrentDateTimeFormatted()}")    
+        precision, fPointFive, recall, accuracy = runRandomForest(rfModel, trainingTestData)
+        print(f"Finished evaluating test training data for {currentYear}")
+        print(f"@ {getCurrentDateTimeFormatted()}")    
         
         # Compare and store top models and metrics.
-        if topMetrics == None:
+        if topPrecision == 0:
             topPrecision = precision
             topYear = year
             topModel = rfModel
@@ -818,22 +823,24 @@ def runBlockingTimeSeriesCrossValidation_rf(dataFrameInput, input_numTrees, inpu
     preppedDataDF = currentYearDF.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
 #        display(preppedDataDF)
     selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
-    dataset = preppedDataDF.select(selectedcols).cache()
-#        display(dataset)
+    testDataSet = preppedDataDF.select(selectedcols).cache()
+#    display(testDataSet)
 
     # Evaluate best model from cross validation against the test data frame of 2021 data, then print evaluation metrics.
-    testDataSet = dataset
-#    display(testDataSet)
+    print(f"Evaluating test data.")
+    print(f"@ {getCurrentDateTimeFormatted()}")
     precision, fPointFive, recall, accuracy = runRandomForest(topModel, testDataSet)
 
     print(f"\n - 2021")
     print("Model Parameters:")
-    print("numTrees:", topModel.numTrees())
-    print("maxDepth:", topModel.maxDepth())
-    print("maxBins:", topModel.maxBins())
+    print("numTrees:", input_numTrees)
+    print("maxDepth:", input_maxDepth)
+    print("maxBins:", input_maxBins)
     print("testDataSet Count:", testDataSet.count())
+    print("Training Rows Count:", trainingRows)
+    print("topYear:", topYear)
     reportMetrics_rf(precision, fPointFive, recall, accuracy)
-#    saveMetricsToAzure_LR(lr, testMetrics)
+    saveMetricsToAzure_RF(precision, fPointFive, recall, accuracy, input_numTrees, input_maxDepth, input_maxBins)
     print(f"@ Finised Test Evaluation")
     print(f"@ {getCurrentDateTimeFormatted()}")
     
@@ -844,9 +851,9 @@ def runBlockingTimeSeriesCrossValidation_rf(dataFrameInput, input_numTrees, inpu
 #maxDepth = [4, 8, 16]
 #maxBins = [32, 64, 128]
 
-numTreesGrid = [10]
-maxDepthGrid = [4]
-maxBinsGrid = [32]
+numTreesGrid = [10, 25]
+maxDepthGrid = [4, 8]
+maxBinsGrid = [32, 64]
 
 for numTrees in numTreesGrid:
     print(f"! numTrees = {numTrees}")
@@ -860,89 +867,9 @@ print(f"! {getCurrentDateTimeFormatted()}\n")
 
 # COMMAND ----------
 
-# Test Grid
-
-testPreppedData_2017 = preppedDataDF.filter(col("YEAR") == 2017)
-testPreppedData_2021 = preppedDataDF.filter(col("YEAR") == 2021)
-
-testPreppedData = testPreppedData_2017.unionAll(testPreppedData_2021)
-
-
-numTreesGrid = [10]
-maxDepthGrid = [4]
-maxBinsGrid = [32]
-
-for numTrees in numTreesGrid:
-    print(f"! numTrees = {numTrees}")
-    for maxDepth in maxDepthGrid:
-        print(f"! maxDepth = {maxDepth}")
-        for maxBins in maxBinsGrid:
-            print(f"! maxBins = {maxBins}")
-            runBlockingTimeSeriesCrossValidation_rf(testPreppedData, numTrees, maxDepth, maxBins)
-print("! Job Finished!")
-print(f"! {getCurrentDateTimeFormatted()}\n")
-
-# COMMAND ----------
-
-# # Logistic Regression
-# # Create initial LogisticRegression model
-
-# lr = LogisticRegression(labelCol="DEP_DEL15", featuresCol="features", maxIter=10)
-rf = RandomForestClassifier(labelCol="DEP_DEL15", featuresCol="features", numTrees=10)
- 
-    
-testPreppedData_2017 = preppedDataDF.filter(col("YEAR") == 2017)
-testPreppedData_2021 = preppedDataDF.filter(col("YEAR") == 2021)
-print("Data Loaded")
-
-# # Train model with Training Data
-
-rfModel = rf.fit(testPreppedData_2017)
-
-predictions = rfModel.transform(testPreppedData_2021)
-
-# View model's predictions and probabilities of each prediction class
-
-# You can select any columns in the above schema to view as well
-
-selected = predictions.select("DEP_DEL15", "prediction", "probability")
-
-display(selected)
-
-# Metric Evaluation
-metrics = MulticlassMetrics(predictions.select("DEP_DEL15", "prediction").rdd)
-#display(predictions.select("label", "prediction").rdd.collect())
-
-TP = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 1) & (col("prediction") == 1)).count()
-print(TP)
-TN = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 0) & (col("prediction") == 0)).count()
-print(TN)
-FP = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 0) & (col("prediction") == 1)).count()
-print(FP)
-FN = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 1) & (col("prediction") == 0)).count()
-print(FN)
-
-if (TP + FP) == 0:
-    precision = 0
-else:
-    precision = TP / (TP + FP)
-    
-if (TP + FN) == 0:
-    recall = 0
-else:
-    recall = TP / (TP + FN)
-    
-accuracy = (TN + TP) / (TN + TP + FP + FN)
-
-print("Manual Precision: ", precision)
-print("Manual Recall: ", recall)
-print("Manual Accuracy: ", accuracy)
-
-#print("categoricalColumns =", categoricalColumns)
-#print("numericalCols =", numericCols)
-#print("Precision = %s" % metrics.precision(1))
-#print("Recall = %s" % metrics.recall(1))
-#print("Accuracy = %s" % metrics.accuracy)
+# Show Saved Metrics
+current_metrics = spark.read.parquet(f"{blob_url}/random_forest_metrics")
+display(current_metrics)
 
 # COMMAND ----------
 
@@ -1060,24 +987,6 @@ display(weightsDF)
 # MAGIC %md
 # MAGIC 
 # MAGIC # Workspace
-
-# COMMAND ----------
-
-# Experimenting with upsampling to solve data imbalance
-
-df_testData0 = df_joined_data_all.select("DEP_DEL15", "YEAR").filter(col("DEP_DEL15") == 0)
-print(df_testData0.count())
-
-df_testData1 = df_joined_data_all.select("DEP_DEL15", "YEAR").filter(col("DEP_DEL15") == 1)
-print(df_testData1.count())
-
-ratio = (df_testData0.count() / df_testData1.count()) - 1
-
-df_upsampled = df_joined_data_all.select("DEP_DEL15", "YEAR").filter(col("DEP_DEL15") == 1).sample(fraction = ratio, withReplacement = True, seed=3)
-print(df_upsampled.count())
-
-df = df_testData1.unionAll(df_upsampled)
-print(df.count())
 
 # COMMAND ----------
 
