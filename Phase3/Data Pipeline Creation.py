@@ -7,6 +7,8 @@
 # MAGIC 
 # MAGIC https://towardsdatascience.com/building-an-ml-application-with-mllib-in-pyspark-part-1-ac13f01606e2
 # MAGIC 
+# MAGIC https://spark.apache.org/docs/2.2.0/ml-classification-regression.html
+# MAGIC 
 # MAGIC https://docs.databricks.com/machine-learning/train-model/mllib/index.html
 # MAGIC 
 # MAGIC https://docs.databricks.com/_static/notebooks/binary-classification.html
@@ -142,14 +144,17 @@ print("**Loading Data Frames")
 df_joined_data_all = spark.read.parquet(f"{blob_url}/joined_data_all")
 display(df_joined_data_all)
 
+df_joined_data_all_with_efeatures = spark.read.parquet(f"{blob_url}/joined_all_with_efeatures")
+display(df_joined_data_all_with_efeatures)
+
 #df_joined_data_2y = df_joined_data_all.filter(col("YEAR") <= 2016).cache()
 #display(df_joined_data_2y)
 
-df_joined_data_pre2021 = df_joined_data_all.filter(col("YEAR") < 2021).cache()
-display(df_joined_data_pre2021)
+#df_joined_data_pre2021 = df_joined_data_all.filter(col("YEAR") < 2021).cache()
+#display(df_joined_data_pre2021)
 
-df_joined_data_2021 = df_joined_data_all.filter(col("YEAR") == 2021)
-display(df_joined_data_2021)
+#df_joined_data_2021 = df_joined_data_all.filter(col("YEAR") == 2021)
+#display(df_joined_data_2021)
 
 print("**Data Frames Loaded")
 
@@ -162,8 +167,9 @@ print("**Data Frames Loaded")
 #df_joined_data_3m = df_joined_data_3m.na.fill(value = 1,subset=["DEP_DEL15"])
 #df_joined_data_2y = df_joined_data_2y.na.fill(value = 1,subset=["DEP_DEL15"])
 df_joined_data_all = df_joined_data_all.na.fill(value = 1,subset=["DEP_DEL15"])
-df_joined_data_pre2021 = df_joined_data_pre2021.na.fill(value = 1,subset=["DEP_DEL15"])
-df_joined_data_2021 = df_joined_data_2021.na.fill(value = 1,subset=["DEP_DEL15"])
+#df_joined_data_pre2021 = df_joined_data_pre2021.na.fill(value = 1,subset=["DEP_DEL15"])
+#df_joined_data_2021 = df_joined_data_2021.na.fill(value = 1,subset=["DEP_DEL15"])
+df_joined_data_all_with_efeatures  = df_joined_data_all_with_efeatures.na.fill(value = 1,subset=["DEP_DEL15"])
 #display(df_joined_data_3m)
 #display(df_joined_data_all)
 
@@ -181,7 +187,7 @@ df_joined_data_all.printSchema()
 
 # Convert categorical features to One Hot Encoding
 
-categoricalColumns = ['ORIGIN', 'QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'FL_DATE', 'OP_UNIQUE_CARRIER', 'TAIL_NUM', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_STATE_ABR',  'DEST_AIRPORT_SEQ_ID', 'DEST_STATE_ABR', 'CRS_DEP_TIME', 'YEAR']
+categoricalColumns = ['ORIGIN', 'QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'FL_DATE', 'OP_UNIQUE_CARRIER', 'TAIL_NUM', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_STATE_ABR',  'DEST_AIRPORT_SEQ_ID', 'DEST_STATE_ABR', 'CRS_DEP_TIME', 'YEAR', 'is_prev_delayed']
 # Features Not Included: DEP_DATETIME_LAG, 'CRS_ELAPSED_TIME', 'DISTANCE','DEP_DATETIME','DATE','ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyPressureChange', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'HourlyWindGustSpeed', 'MonthlyMeanTemperature', 'MonthlyMaximumTemperature', 'MonthlyGreatestSnowDepth', 'MonthlyGreatestSnowfall', 'MonthlyTotalSnowfall', 'MonthlyTotalLiquidPrecipitation', 'MonthlyMinimumTemperature', 'DATE_HOUR', 'distance_to_neighbor', 'neighbor_lat', 'neighbor_lon', 'time_zone_id', 'UTC_DEP_DATETIME_LAG', 'UTC_DEP_DATETIME', DEP_DEL15, 'ORIGIN_AIRPORT_ID', 'DEST_AIRPORT_ID','ORIGIN_WAC', 'DEST_WAC', 'CANCELLED', 'CANCELLATION_CODE', 'SOURCE'
 
 # Could not use , 'flight_id'. Leads to buffer overflow error.
@@ -210,7 +216,7 @@ for categoricalCol in categoricalColumns:
 # Create vectors for numeric and categorical variables
 
 # Join v2 columns:
-numericCols = ['CRS_ELAPSED_TIME', 'DISTANCE','ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed']
+numericCols = ['CRS_ELAPSED_TIME', 'DISTANCE','ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'perc_delay']
 # Features Not Included: 'DEP_DATETIME','DATE', 'HourlyWindGustSpeed', 'MonthlyMeanTemperature', 'MonthlyMaximumTemperature', 'MonthlyGreatestSnowDepth', 'MonthlyGreatestSnowfall', 'MonthlyTotalSnowfall', 'MonthlyTotalLiquidPrecipitation', 'MonthlyMinimumTemperature', 'DATE_HOUR', 'time_zone_id', 'UTC_DEP_DATETIME_LAG', 'UTC_DEP_DATETIME', 'HourlyPressureChange', 'distance_to_neighbor', 'neighbor_lat', 'neighbor_lon'
 
 # scaler = StandardScaler(inputCol=numericCols, outputCol="scaledFeatures", withStd=True, withMean=False)
@@ -240,8 +246,12 @@ partialPipeline = Pipeline().setStages(stages)
 #preppedDataDF = pipelineModel.transform(df_joined_data_2y)
 
 # Apply pipeline to Full Time
-pipelineModel = partialPipeline.fit(df_joined_data_all)
-preppedDataDF = pipelineModel.transform(df_joined_data_all).cache()
+#pipelineModel = partialPipeline.fit(df_joined_data_all)
+#preppedDataDF = pipelineModel.transform(df_joined_data_all).cache()
+
+# Apply pipeline to Full Time With EFeatures
+pipelineModel = partialPipeline.fit(df_joined_data_all_with_efeatures)
+preppedDataDF = pipelineModel.transform(df_joined_data_all_with_efeatures).cache()
 
 # Apply pipeline to Pre-2021
 #pipelineModel_pre2021 = partialPipeline.fit(df_joined_data_pre2021)
@@ -625,47 +635,6 @@ display(current_metrics)
 
 # MAGIC %md
 # MAGIC 
-# MAGIC ### Logistic Regression Results
-# MAGIC 
-# MAGIC 11/16/22
-# MAGIC 55 minutes
-# MAGIC regParam = 0.0
-# MAGIC elasticNetParam = 0.0
-# MAGIC maxIter = 10
-# MAGIC threshold = .5
-# MAGIC testDataSet Count: 5771706
-# MAGIC Precision = 0.029235971681133347
-# MAGIC F1 = 0.05415838783534103
-# MAGIC Recall = 0.36706913430609295
-# MAGIC Accuracy = 0.80939517709322
-# MAGIC 
-# MAGIC 11/20/22
-# MAGIC regParam = .01
-# MAGIC elasticNetParam = 0.0
-# MAGIC maxIter = 1
-# MAGIC threshold = .5
-# MAGIC testDataSet Count: 5771706
-# MAGIC Precision = 0.013125369557125526
-# MAGIC F1 = 0.025499071285593207
-# MAGIC Recall = 0.4452561639953396
-# MAGIC Accuracy = 0.8127451398252094
-# MAGIC 
-# MAGIC 11/21/22
-# MAGIC Model Parameters:
-# MAGIC regParam: 0.0
-# MAGIC elasticNetParam: 0.0
-# MAGIC maxIter: 10
-# MAGIC threshold: 0.3
-# MAGIC testDataSet Count: 5771706
-# MAGIC Precision = 0.2542970733396268
-# MAGIC F1 = 0.27699824117668764
-# MAGIC Recall = 0.3041497728493967
-# MAGIC Accuracy = 0.7522193611386304
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC 
 # MAGIC # Random Forest
 
 # COMMAND ----------
@@ -847,6 +816,8 @@ def runBlockingTimeSeriesCrossValidation_rf(dataFrameInput, input_numTrees, inpu
 
 # COMMAND ----------
 
+# ~ 2.5 hours per CV. Evaluating each year takes about 20 minutes. Be mindful of how many parameters you are passing in.
+
 #numTrees = [10, 25, 50]
 #maxDepth = [4, 8, 16]
 #maxBins = [32, 64, 128]
@@ -995,6 +966,34 @@ display(pageRanks_PriorTo21)
 
 pageRanks_Quarter_Year = spark.read.csv(f"{blob_url}/PageRanks_Quarter_Year.csv", header=True)
 display(pageRanks_Quarter_Year)
+
+# COMMAND ----------
+
+display(df_joined_data_all_with_efeatures.filter(col("YEAR") == 2021))
+
+# COMMAND ----------
+
+display(df_joined_data_all_with_efeatures.filter(col("AssumedEffect").isNull()))
+print(df_joined_data_all_with_efeatures.filter(col("AssumedEffect").isNull()).count())
+
+display(df_joined_data_all_with_efeatures.filter(col("AssumedEffect").isNotNull()))
+print(df_joined_data_all_with_efeatures.filter(col("AssumedEffect").isNotNull()).count())
+
+# COMMAND ----------
+
+display(df_joined_data_all_with_efeatures.filter(col("is_prev_delayed").isNull()))
+print(df_joined_data_all_with_efeatures.filter(col("is_prev_delayed").isNull()).count())
+
+display(df_joined_data_all_with_efeatures.filter(col("is_prev_delayed").isNotNull()))
+print(df_joined_data_all_with_efeatures.filter(col("is_prev_delayed").isNotNull()).count())
+
+# COMMAND ----------
+
+display(df_joined_data_all_with_efeatures.filter(col("perc_delay").isNull()))
+print(df_joined_data_all_with_efeatures.filter(col("perc_delay").isNull()).count())
+
+display(df_joined_data_all_with_efeatures.filter(col("perc_delay").isNotNull()))
+print(df_joined_data_all_with_efeatures.filter(col("perc_delay").isNotNull()).count())
 
 # COMMAND ----------
 
