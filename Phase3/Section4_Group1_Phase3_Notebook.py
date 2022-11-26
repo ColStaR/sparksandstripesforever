@@ -489,6 +489,42 @@
 
 # MAGIC %md
 # MAGIC 
+# MAGIC # Data Pipeline Improvements
+# MAGIC 
+# MAGIC After considering our unexpectedly low baseline metrics in the previous phase, we went through our pipeline and procedures in order to determine what the core cause of those results would be. After much research, consultation, and comparisons with other groups as part of the gap analysis (which will be detailed in its own section below), we identified a few key areas where our pipeline could be improved. Not only did these changes to the pipeline improve our model performance dramatically, but it also implemented a few features that optimized our model run-times and provided essential convenience functionality.
+# MAGIC 
+# MAGIC ## Blocking Time Series Split Cross Validation Method
+# MAGIC 
+# MAGIC Since this project reolves around time series data, the standard K-Folds Cross Validation method is insufficient since it does not take into account the chronological aspect of the data. KFolds introduces time gaps in the data, tests on data occurring before the training data, and it leaks data when the model memorizes future data it should not have seen yet, as seen in the illustration below.
+# MAGIC 
+# MAGIC ![Image of KFolds Cross Validation](https://github.com/ColStaR/sparksandstripesforever/blob/main/Phase3/images/kfoldssplit.JPG?raw=true)
+# MAGIC 
+# MAGIC However, the MLLib library that we were working with did not offer any viable out-of-the-box for cross validating time series data. As such, we chose to build our own version of cross validation called BlockingTimeSeriesSplit. Blocking Time Series Split will split the training data by year, builds a model for each year, trains that model on data from the first 70% of that year, and then tests that model on the data from the latter 30%. The model with the best metrics when tested is chosen as our best model to be evaluated against the 2021 test data. This custom method of cross validation should provide more conceptually and mathematically-sound model results due to the way it handles time series data.
+# MAGIC 
+# MAGIC ![Image of Blocking Time Series Split Cross Validation](https://github.com/ColStaR/sparksandstripesforever/blob/main/Phase3/images/blockingtimeseriessplit.JPG?raw=true)
+# MAGIC 
+# MAGIC ## Rebalancing Data during Training
+# MAGIC 
+# MAGIC During the EDA, we noted that the data set was distributed unevenly, with data for non-delayed flights representing ~80% of the data while delayed flights represented about 20%. At first, we thought this imbalance would be within acceptable measures for training, and that training on this imbalanced data set would be preferable to introducing the noise caused by artificial upsampling or downsampling. However, seeing the results of our baseline metrics made us reconsider this position, as we now believed that there were not enough data of delayed flights for our models to properly train on.
+# MAGIC 
+# MAGIC #### Upsampling VS Downsampling
+# MAGIC 
+# MAGIC ## Model Ensembling
+# MAGIC 
+# MAGIC ## Automated Metrics Saving
+# MAGIC 
+# MAGIC ## New Features
+# MAGIC 
+# MAGIC Described below.
+# MAGIC 
+# MAGIC ### Image of Updated Pipeline
+# MAGIC 
+# MAGIC ![Image of Updated Pipeline](https://github.com/ColStaR/sparksandstripesforever/blob/main/Phase3/images/Data_Pipeline_v3.png?raw=true)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
 # MAGIC Nina, Deanna, Nash
 # MAGIC 
 # MAGIC # Added Features
@@ -497,11 +533,15 @@
 # MAGIC 
 # MAGIC Was the flight in question previously delayed within a recent window of time?
 # MAGIC 
-# MAGIC ## Arrival Airport Weather Data
+# MAGIC ## Airline Efficacy Score
 # MAGIC 
-# MAGIC Adding weather data for a flight's arrival airport.
+# MAGIC For each airline, what percentage of their flights were delayed last year? Last year's delay percentage may inform the current year's delay likelihood.
 # MAGIC 
-# MAGIC ## Incoming Flight Frequency
+# MAGIC ## Holiday and Special Event Day Tracker
+# MAGIC 
+# MAGIC Tracks holidays and special events that may impact the volume of air travel during a particular day.
+# MAGIC 
+# MAGIC ## Incoming Flight Frequency with PageRank
 # MAGIC 
 # MAGIC Is the airport experiencing an abnormal number of incoming flights?
 
@@ -537,9 +577,13 @@
 
 # MAGIC %md
 # MAGIC 
-# MAGIC Assignment TBA
+# MAGIC Ryan
 # MAGIC 
 # MAGIC # Hyperparameter Tuning
+# MAGIC 
+# MAGIC 
+# MAGIC 
+# MAGIC Is there a difference in performance? Is it related to features? Is it related to noise? What is impacting the model performance?
 
 # COMMAND ----------
 
@@ -559,19 +603,11 @@
 
 # MAGIC %md
 # MAGIC 
-# MAGIC # Link to Phase 3 Presentation Video
-# MAGIC 
-# MAGIC Per the project requirements, a 2 minute video providing a quick overview of the Phase 2 progress has been created.
-# MAGIC 
-# MAGIC [Click Here for the Video]
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC 
 # MAGIC # Link to In-Class Presentation Slides
 # MAGIC 
 # MAGIC [Presentation Link in Google Slides](https://docs.google.com/presentation/d/1-Yc9jgz9TPdmsvAWvPCFchSAAOvipdvYbo6E6HiaK_s/edit#slide=id.g18d7e4d3627_1_1247)
+# MAGIC 
+# MAGIC [Presentation Link in PDF Format](https://github.com/ColStaR/sparksandstripesforever/blob/main/Phase3/Phase_3_Presentation.pdf)
 
 # COMMAND ----------
 

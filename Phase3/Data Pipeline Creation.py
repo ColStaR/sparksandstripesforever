@@ -38,6 +38,7 @@ from sklearn import svm
 from joblibspark import register_spark
 
 from pyspark.ml.classification import RandomForestClassifier
+from pyspark.ml.classification import LinearSVC
 
 import pandas as pd
 import numpy as np
@@ -196,6 +197,7 @@ categoricalColumns = ['ORIGIN', 'QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK
 # Is including this data leakage? 'DEP_TIME', 'DEP_HOUR', 
 
 stages = [] # stages in Pipeline
+stages_NoEncoding = [] # stages in Pipeline
 
 # NOTE: Had to cut out a bunch of features due to the sheer number of NULLS in them, which were causing the entire dataframe to be skipped. Will need to get the Null values either filled or dropped.
 
@@ -207,6 +209,7 @@ for categoricalCol in categoricalColumns:
 #        
     # Add stages.  These are not run here, but will run all at once later on.
     stages += [stringIndexer, encoder]
+    stages_NoEncoding += [stringIndexer]
 #    
 #print(stages)
 
@@ -216,7 +219,7 @@ for categoricalCol in categoricalColumns:
 # Create vectors for numeric and categorical variables
 
 # Join v2 columns:
-numericCols = ['CRS_ELAPSED_TIME', 'DISTANCE','ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'perc_delay']
+numericCols = ['CRS_ELAPSED_TIME', 'DISTANCE','ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed']
 # Features Not Included: 'DEP_DATETIME','DATE', 'HourlyWindGustSpeed', 'MonthlyMeanTemperature', 'MonthlyMaximumTemperature', 'MonthlyGreatestSnowDepth', 'MonthlyGreatestSnowfall', 'MonthlyTotalSnowfall', 'MonthlyTotalLiquidPrecipitation', 'MonthlyMinimumTemperature', 'DATE_HOUR', 'time_zone_id', 'UTC_DEP_DATETIME_LAG', 'UTC_DEP_DATETIME', 'HourlyPressureChange', 'distance_to_neighbor', 'neighbor_lat', 'neighbor_lon'
 
 # scaler = StandardScaler(inputCol=numericCols, outputCol="scaledFeatures", withStd=True, withMean=False)
@@ -227,15 +230,17 @@ assemblerInputs = [c + "classVec" for c in categoricalColumns] + numericCols
 assembler = VectorAssembler(inputCols=assemblerInputs, outputCol="features").setHandleInvalid("skip")
 
 stages += [assembler]
+stages_NoEncoding += [assembler]
 
 #print(stages)
 
 # COMMAND ----------
 
-# Takes about 9 minutes for Full
+# Takes about 4 minutes for Full
 
 # Create the pipeline to be applied to the dataframes
 partialPipeline = Pipeline().setStages(stages)
+partialPipeline_NoEncoding = Pipeline().setStages(stages_NoEncoding)
 
 # Apply pipeline to 3 Month
 #pipelineModel = partialPipeline.fit(df_joined_data_3m)
@@ -252,6 +257,10 @@ partialPipeline = Pipeline().setStages(stages)
 # Apply pipeline to Full Time With EFeatures
 pipelineModel = partialPipeline.fit(df_joined_data_all_with_efeatures)
 preppedDataDF = pipelineModel.transform(df_joined_data_all_with_efeatures).cache()
+
+# Apply pipeline to Full Time With EFeatures, Not One-Hot Encoded
+pipelineModel_NoEncoding = partialPipeline_NoEncoding.fit(df_joined_data_all_with_efeatures)
+preppedDataDF_NoEncoding = pipelineModel_NoEncoding.transform(df_joined_data_all_with_efeatures).cache()
 
 # Apply pipeline to Pre-2021
 #pipelineModel_pre2021 = partialPipeline.fit(df_joined_data_pre2021)
@@ -420,6 +429,8 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input, elastic
 #    reportMetrics(topMetrics)
 #    print("Top Model:", topModel)
     
+    print(f"@ Training Test Metrics")
+    reportMetrics(topMetrics)
 
     print(f"@ Starting Test Evaluation")
     print(f"@ {getCurrentDateTimeFormatted()}")
@@ -547,6 +558,8 @@ def runBlockingTimeSeriesCrossValidation_downsampling(dataFrameInput, regParam_i
 #    reportMetrics(topMetrics)
 #    print("Top Model:", topModel)
     
+    print(f"@ Training Test Metrics")
+    reportMetrics(topMetrics)
 
     print(f"@ Starting Test Evaluation")
     print(f"@ {getCurrentDateTimeFormatted()}")
@@ -587,8 +600,8 @@ def runBlockingTimeSeriesCrossValidation_downsampling(dataFrameInput, regParam_i
 #elasticNetParamGrid = [0.0, 0.5, 1.0]
 #maxIterGrid = [1, 5, 10]
 
-regParamGrid = [0.0]
-elasticNetParamGrid = [0]
+regParamGrid = [0.0, 0.1]
+elasticNetParamGrid = [0, 0.5]
 maxIterGrid = [10]
 thresholdGrid = [0.5]
 
@@ -610,7 +623,7 @@ print(f"! {getCurrentDateTimeFormatted()}\n")
 # Downsampling Test
 
 regParamGrid = [0.0]
-elasticNetParamGrid = [0]
+elasticNetParamGrid = [0.0]
 maxIterGrid = [10]
 thresholdGrid = [0.5]
 
@@ -822,9 +835,9 @@ def runBlockingTimeSeriesCrossValidation_rf(dataFrameInput, input_numTrees, inpu
 #maxDepth = [4, 8, 16]
 #maxBins = [32, 64, 128]
 
-numTreesGrid = [10, 25]
-maxDepthGrid = [4, 8]
-maxBinsGrid = [32, 64]
+numTreesGrid = [10]
+maxDepthGrid = [4]
+maxBinsGrid = [32]
 
 for numTrees in numTreesGrid:
     print(f"! numTrees = {numTrees}")
@@ -838,9 +851,135 @@ print(f"! {getCurrentDateTimeFormatted()}\n")
 
 # COMMAND ----------
 
+# Test without OneHotEncoding
+
+#numTrees = [10, 25, 50]
+#maxDepth = [4, 8, 16]
+#maxBins = [32, 64, 128]
+
+numTreesGrid = [10]
+maxDepthGrid = [4]
+maxBinsGrid = [32]
+
+for numTrees in numTreesGrid:
+    print(f"! numTrees = {numTrees}")
+    for maxDepth in maxDepthGrid:
+        print(f"! maxDepth = {maxDepth}")
+        for maxBins in maxBinsGrid:
+            print(f"! maxBins = {maxBins}")
+            runBlockingTimeSeriesCrossValidation_rf(preppedDataDF_NoEncoding, numTrees, maxDepth, maxBins)
+print("! Job Finished!")
+print(f"! {getCurrentDateTimeFormatted()}\n")
+
+# COMMAND ----------
+
 # Show Saved Metrics
 current_metrics = spark.read.parquet(f"{blob_url}/random_forest_metrics")
 display(current_metrics)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC # Linear Support Vector Machines
+
+# COMMAND ----------
+
+# 18 minutes
+
+print(f"@ {getCurrentDateTimeFormatted()}")
+testPreppedData_2017 = preppedDataDF.filter(col("YEAR") == 2017)
+testPreppedData_2021 = preppedDataDF.filter(col("YEAR") == 2021)
+print("Data Loaded")
+print(f"@ {getCurrentDateTimeFormatted()}")
+
+testPreppedData_2017_downsampling_0 = testPreppedData_2017.filter(col("DEP_DEL15") == 0).cache()
+#        print(f"@- currentYearDF_downsampling_0.count() = {currentYearDF_downsampling_0.count()}")
+testPreppedData_2017_downsampling_1 = testPreppedData_2017.filter(col("DEP_DEL15") == 1).cache()
+#        print(f"@- currentYearDF_downsampling_1.count() = {currentYearDF_downsampling_1.count()}")
+
+downsampling_ratio = (testPreppedData_2017_downsampling_1.count() / testPreppedData_2017_downsampling_0.count())
+
+testPreppedData_2017_downsampling_append = testPreppedData_2017_downsampling_0.sample(fraction = downsampling_ratio, withReplacement = False, seed = 261)
+
+testPreppedData_2017_downsampled = testPreppedData_2017_downsampling_1.unionAll(testPreppedData_2017_downsampling_append)
+#        print(f"@- currentYearDF_downsampled.count() = {currentYearDF_downsampled.count()}")
+print(f"@ testPreppedData_2017_downsampled(): {testPreppedData_2017_downsampled.count()}")    
+print(f"@ {getCurrentDateTimeFormatted()}")
+# Adds a percentage column to each year's data frame, with the percentage corresponding to percentage of the year's time. 
+# 0% = earliest time that year. 100% = latest time that year.
+preppedDataDF = testPreppedData_2017_downsampled.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG"))).cache()
+
+
+lsvc = LinearSVC(labelCol="DEP_DEL15", featuresCol="features", maxIter=10)
+lsvc = lsvc.fit(preppedDataDF)
+
+
+print("Model Trained")
+print(f"@ {getCurrentDateTimeFormatted()}")
+predictions = lsvc.transform(testPreppedData_2021)
+
+print("Model Evaluated")
+print(f"@ {getCurrentDateTimeFormatted()}")
+
+metrics = MulticlassMetrics(predictions.select("DEP_DEL15", "prediction").rdd)
+
+print("Precision = %s" % metrics.precision(1))
+print("F0.5 = %s" % metrics.fMeasure(label = 1.0, beta = 0.5))
+print("Recall = %s" % metrics.recall(1))
+print("Accuracy = %s" % metrics.accuracy)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC # Gradient Boosted Tree
+
+# COMMAND ----------
+
+# GBT
+
+from pyspark.ml.classification import RandomForestClassifier
+
+print(f"@ {getCurrentDateTimeFormatted()}")
+testPreppedData_2017 = preppedDataDF.filter(col("YEAR") == 2017)
+testPreppedData_2021 = preppedDataDF.filter(col("YEAR") == 2021)
+print("Data Loaded")
+print(f"@ {getCurrentDateTimeFormatted()}")
+
+testPreppedData_2017_downsampling_0 = testPreppedData_2017.filter(col("DEP_DEL15") == 0).cache()
+#        print(f"@- currentYearDF_downsampling_0.count() = {currentYearDF_downsampling_0.count()}")
+testPreppedData_2017_downsampling_1 = testPreppedData_2017.filter(col("DEP_DEL15") == 1).cache()
+#        print(f"@- currentYearDF_downsampling_1.count() = {currentYearDF_downsampling_1.count()}")
+
+downsampling_ratio = (testPreppedData_2017_downsampling_1.count() / testPreppedData_2017_downsampling_0.count())
+
+testPreppedData_2017_downsampling_append = testPreppedData_2017_downsampling_0.sample(fraction = downsampling_ratio, withReplacement = False, seed = 261)
+
+testPreppedData_2017_downsampled = testPreppedData_2017_downsampling_1.unionAll(testPreppedData_2017_downsampling_append)
+#        print(f"@- currentYearDF_downsampled.count() = {currentYearDF_downsampled.count()}")
+print(f"@ testPreppedData_2017_downsampled(): {testPreppedData_2017_downsampled.count()}")    
+print(f"@ {getCurrentDateTimeFormatted()}")
+# Adds a percentage column to each year's data frame, with the percentage corresponding to percentage of the year's time. 
+# 0% = earliest time that year. 100% = latest time that year.
+preppedDataDF = testPreppedData_2017_downsampled.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG"))).cache()
+
+rf = RandomForestClassifier(featuresCol = 'features', labelCol = 'DEP_DEL15')
+rfModel = rf.fit(preppedDataDF)
+
+print("Model Trained")
+print(f"@ {getCurrentDateTimeFormatted()}")
+predictions = rfModel.transform(testPreppedData_2021)
+
+print("Model Evaluated")
+print(f"@ {getCurrentDateTimeFormatted()}")
+
+metrics = MulticlassMetrics(predictions.select("DEP_DEL15", "prediction").rdd)
+
+print("Precision = %s" % metrics.precision(1))
+print("F0.5 = %s" % metrics.fMeasure(label = 1.0, beta = 0.5))
+print("Recall = %s" % metrics.recall(1))
+print("Accuracy = %s" % metrics.accuracy)
 
 # COMMAND ----------
 
