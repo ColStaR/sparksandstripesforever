@@ -84,10 +84,10 @@ display(df_joined_data_all_N21)
 
 # COMMAND ----------
 
-from pyspark.sql.functions import countDistinct
+#from pyspark.sql.functions import countDistinct
 
-edges.select(countDistinct("src")).show()
-edges.select(countDistinct("dst")).show()
+#edges.select(countDistinct("src")).show()
+#edges.select(countDistinct("dst")).show()
 
 # COMMAND ----------
 
@@ -537,6 +537,124 @@ resultsByQuarterYear = [results15Q1.vertices, results15Q2.vertices, results15Q3.
 
 resultsByQuarterYearDF = reduce(DataFrame.union, resultsByQuarterYear)
 display(resultsByQuarterYearDF)
+
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2020
+
+df_joined_data_all_2020 = df_joined_data_all_N21.filter(df_joined_data_all.YEAR == "2020") 
+
+vertices = df_joined_data_all_2020.select('DEST','YEAR').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_2020.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results2020 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results2020.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2019
+
+df_joined_data_all_2019 = df_joined_data_all_N21.filter(df_joined_data_all.YEAR == "2019") 
+
+vertices = df_joined_data_all_2019.select('DEST','YEAR').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_2019.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results2019 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results2019.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2018
+
+df_joined_data_all_2018 = df_joined_data_all_N21.filter(df_joined_data_all.YEAR == "2018") 
+
+vertices = df_joined_data_all_2018.select('DEST','YEAR').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_2018.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results2018 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results2018.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2017
+
+df_joined_data_all_2017 = df_joined_data_all_N21.filter(df_joined_data_all.YEAR == "2017") 
+
+vertices = df_joined_data_all_2017.select('DEST','YEAR').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_2017.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results2017 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results2017.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2016
+
+df_joined_data_all_2016 = df_joined_data_all_N21.filter(df_joined_data_all.YEAR == "2016") 
+
+vertices = df_joined_data_all_2016.select('DEST','YEAR').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_2016.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results2016 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results2016.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#Non-21
+#2015
+
+df_joined_data_all_2015 = df_joined_data_all_N21.filter(df_joined_data_all.YEAR == "2015") 
+
+vertices = df_joined_data_all_2015.select('DEST','YEAR').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_2015.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results2015 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results2015.vertices)
+
+# COMMAND ----------
+
+from functools import reduce
+from pyspark.sql import DataFrame
+
+resultsByYear = [results2015.vertices, results2016.vertices, results2017.vertices, results2018.vertices, results2019.vertices, results2020.vertices]
+
+#test = results15Q1.vertices.union(results15Q2.vertices, )
+#display(test)
+#resultsByQuarterYear = pd.concat(resultsByQuarterYear)
+#type(results15Q1.vertices)
+
+resultsByYearDF = reduce(DataFrame.union, resultsByYear)
+display(resultsByYearDF)
 
 
 # COMMAND ----------
