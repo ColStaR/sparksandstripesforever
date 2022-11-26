@@ -649,4 +649,56 @@ evaluator.evaluate(predictions)
 
 # COMMAND ----------
 
+# MAGIC %md 
+# MAGIC PageRank Join Section
+
+# COMMAND ----------
+
+PageranksByYear = spark.read.csv(f"{blob_url}/PageranksByYear.csv", header=True)
+PageranksByYear = PageranksByYear.withColumnRenamed('YEAR','YEAR2').distinct()
+
+display(PageranksByYear)
+
+
+# COMMAND ----------
+
+df_joined_all_with_efeatures = spark.read.parquet(f"{blob_url}/joined_all_with_efeatures")
+display(df_joined_all_with_efeatures)
+
+# COMMAND ----------
+
+#def lag(row):
+    #row['YEAR'] - 1
+    
+
+#df_joined_all_with_efeatures.toPandas()
+#df_joined_all_with_efeatures['YEARLAG1'] = df_joined_all_with_efeatures.apply(lag,axis=1)
+#display(df_joined_all_with_efeatures)
+
+df_join_PR = df_joined_all_with_efeatures.withColumn('YEARLAG1',
+                       df_joined_all_with_efeatures.YEAR - 1)
+
+#df_join_PR.join(df_join_PR,PageranksByYear.emp_dept_id ==  deptDF.dept_id,"left")
+ #   .show(truncate=False)
+    
+# df_join_PR.join(PageranksByYear,df_join_PR.YEARLAG1 ==  PageranksByYear.YEAR,"left")
+ #   .show(truncate=False)
+    
+    
+df_join_PR = df_join_PR.join(PageranksByYear, (df_join_PR["YEARLAG1"] == PageranksByYear["YEAR2"]) &
+   ( df_join_PR["DEST"] == PageranksByYear["id"]),"left")
+
+df_join_PR = df_join_PR.drop("YEAR2","id")
+
+
+display(df_join_PR)
+
+# COMMAND ----------
+
+df_join_PR2 = df_join_PR.filter(df_join_PR.YEAR == "2017") 
+display(df_join_PR2)
+
+
+# COMMAND ----------
+
 
