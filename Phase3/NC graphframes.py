@@ -69,6 +69,40 @@ display(df_joined_data_all)
 
 # COMMAND ----------
 
+from graphframes import * 
+#21 by Q
+
+
+df_joined_data_all_21 = df_joined_data_all.filter(df_joined_data_all.YEAR == "2021")
+
+vertices = df_joined_data_all_21.select('DEST','YEAR','QUARTER').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_21.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results21 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results21.vertices)
+
+# COMMAND ----------
+
+from graphframes import * 
+#21
+
+
+df_joined_data_all_21 = df_joined_data_all.filter(df_joined_data_all.YEAR == "2021")
+
+vertices = df_joined_data_all_21.select('DEST','YEAR').withColumnRenamed('DEST','id').distinct()
+
+edges = df_joined_data_all_21.select('DEST','ORIGIN').withColumnRenamed("DEST","src").withColumnRenamed("ORIGIN","dst")
+
+g = GraphFrame(vertices, edges)
+
+results21 = g.pageRank(resetProbability=0.15, tol=0.01)
+display(results21.vertices)
+
+# COMMAND ----------
+
 df_joined_data_all_N21 = df_joined_data_all.filter(df_joined_data_all.YEAR != "2021")
 display(df_joined_data_all_N21)
 #display(df_joined_data_all_N21.filter(df_joined_data_all.YEAR == "2021"))
