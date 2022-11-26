@@ -525,7 +525,7 @@
 
 # MAGIC %md
 # MAGIC 
-# MAGIC Nina, Deanna, Nash
+# MAGIC Nina, Nash
 # MAGIC 
 # MAGIC # Added Features
 # MAGIC 
@@ -563,9 +563,23 @@
 
 # MAGIC %md
 # MAGIC 
-# MAGIC Deanna
+# MAGIC Ryan
 # MAGIC 
 # MAGIC # New Model: Random Forests
+# MAGIC 
+# MAGIC ## Model Evaluation over Training Data
+# MAGIC 
+# MAGIC ## Model Evaluation over Test Data
+# MAGIC 
+# MAGIC ## Comparison with Baseline Model
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC Ryan
+# MAGIC 
+# MAGIC # New Model: SVM
 # MAGIC 
 # MAGIC ## Model Evaluation over Training Data
 # MAGIC 
@@ -584,12 +598,14 @@
 # MAGIC 
 # MAGIC 
 # MAGIC Is there a difference in performance? Is it related to features? Is it related to noise? What is impacting the model performance?
+# MAGIC 
+# MAGIC For each mode: These are the values we used, these are the ones we tested for, these did the best.
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC 
-# MAGIC Assignment TBA
+# MAGIC Nina, Nash
 # MAGIC 
 # MAGIC # Gap Analysis with Leaderboard Models
 # MAGIC 

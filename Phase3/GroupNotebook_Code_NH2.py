@@ -701,4 +701,8 @@ display(df_join_PR2)
 
 # COMMAND ----------
 
+print(df_join_PR.filter(col("pagerank").isNull()).count())
+
+# COMMAND ----------
+
 

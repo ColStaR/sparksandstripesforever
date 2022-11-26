@@ -70,64 +70,6 @@ spark.conf.set(
 def getCurrentDateTimeFormatted():
     return str(datetime.utcnow()).replace(" ", "-").replace(":", "-").replace(".", "-")
 
-def resetMetricsToAzure_LR():
-    backup_metrics = spark.read.parquet(f"{blob_url}/logistic_regression_metrics")
-    backup_date_string = getCurrentDateTimeFormatted()
-    backup_metrics.write.parquet(f"{blob_url}/metrics_backups/logistic_regression_metrics-{backup_date_string}")
-    
-    columns = ["date_time","precision", "f0.5", "recall", "accuracy", "regParam", "elasticNetParam", "maxIter", "threshold"]
-    data = [(datetime.utcnow(), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0)]
-    rdd = spark.sparkContext.parallelize(data)
-    dfFromRDD = rdd.toDF(columns)
-    
-    dfFromRDD.write.mode('overwrite').parquet(f"{blob_url}/logistic_regression_metrics")
-    print("LR Metrics Reset")
-
-def saveMetricsToAzure_LR(input_model, input_metrics):
-    columns = ["date_time","precision", "f0.5", "recall", "accuracy", "regParam", "elasticNetParam", "maxIter", "threshold"]
-    data = [(datetime.utcnow(), input_metrics.precision(1), input_metrics.fMeasure(label = 1.0, beta = 0.5), \
-             input_metrics.recall(1), input_metrics.accuracy, input_model.getRegParam(), \
-             input_model.getElasticNetParam(), input_model.getMaxIter(), input_model.getThreshold())]
-    rdd = spark.sparkContext.parallelize(data)
-    dfFromRDD = rdd.toDF(columns)
-    
-    dfFromRDD.write.mode('append').parquet(f"{blob_url}/logistic_regression_metrics")
-    print("LR Metrics Saved Successfully!")
-    
-def resetMetricsToAzure_RF():
-    backup_metrics = spark.read.parquet(f"{blob_url}/random_forest_metrics")
-    backup_date_string = getCurrentDateTimeFormatted()
-    backup_metrics.write.parquet(f"{blob_url}/metrics_backups/random_forest_metrics-{backup_date_string}")
-    
-    columns = ["date_time","precision", "f0.5", "recall", "accuracy", "numTrees", "maxDepth", "maxBins"]
-    data = [(datetime.utcnow(), 0.0, 0.0, 0.0, 0.0, 0, 0, 0)]
-    rdd = spark.sparkContext.parallelize(data)
-    dfFromRDD = rdd.toDF(columns)
-    
-    dfFromRDD.write.mode('overwrite').parquet(f"{blob_url}/random_forest_metrics")
-    print("RF Metrics Reset")
-
-def saveMetricsToAzure_RF(input_precision, input_fPointFive, input_recall, input_accuracy, input_numTrees, input_maxDepth, input_maxBins):
-    columns = ["date_time","precision", "f0.5", "recall", "accuracy", "numTrees", "maxDepth", "maxBins"]
-    data = [(datetime.utcnow(), input_precision, input_fPointFive, \
-             input_recall, input_accuracy, input_numTrees, \
-             input_maxDepth, input_maxBins)]
-    rdd = spark.sparkContext.parallelize(data)
-    dfFromRDD = rdd.toDF(columns)
-    
-    dfFromRDD.write.mode('append').parquet(f"{blob_url}/random_forest_metrics")
-    print("RF Metrics Saved Successfully!")
-
-    
-# WARNING: Will Delete Current Metrics for Logistic Regression
-#resetMetricsToAzure_LR()
-# WARNING: Will Delete Current Metrics for Logistic Regression
-
-
-# WARNING: Will Delete Current Metrics for Random Forest
-#resetMetricsToAzure_RF()
-# WARNING: Will Delete Current Metricsfor Random Forest
-
 # COMMAND ----------
 
 # Load Dataframes
@@ -146,6 +88,9 @@ df_joined_data_all = spark.read.parquet(f"{blob_url}/joined_data_all")
 display(df_joined_data_all)
 
 df_joined_data_all_with_efeatures = spark.read.parquet(f"{blob_url}/joined_all_with_efeatures")
+display(df_joined_data_all_with_efeatures)
+
+df_joined_data_all_with_efeatures = spark.read.parquet(f"{blob_url}/joined_all_with_efeatures_v2_No2015")
 display(df_joined_data_all_with_efeatures)
 
 #df_joined_data_2y = df_joined_data_all.filter(col("YEAR") <= 2016).cache()
@@ -188,11 +133,8 @@ df_joined_data_all.printSchema()
 
 # Convert categorical features to One Hot Encoding
 
-categoricalColumns = ['ORIGIN', 'QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'FL_DATE', 'OP_UNIQUE_CARRIER', 'TAIL_NUM', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_STATE_ABR',  'DEST_AIRPORT_SEQ_ID', 'DEST_STATE_ABR', 'CRS_DEP_TIME', 'YEAR', 'is_prev_delayed']
+categoricalColumns = ['ORIGIN', 'QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'FL_DATE', 'OP_UNIQUE_CARRIER', 'TAIL_NUM', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_STATE_ABR',  'DEST_AIRPORT_SEQ_ID', 'DEST_STATE_ABR', 'CRS_DEP_TIME', 'YEAR', 'AssumedEffect', 'is_prev_delayed', 'is_prev_diverted']
 # Features Not Included: DEP_DATETIME_LAG, 'CRS_ELAPSED_TIME', 'DISTANCE','DEP_DATETIME','DATE','ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyPressureChange', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'HourlyWindGustSpeed', 'MonthlyMeanTemperature', 'MonthlyMaximumTemperature', 'MonthlyGreatestSnowDepth', 'MonthlyGreatestSnowfall', 'MonthlyTotalSnowfall', 'MonthlyTotalLiquidPrecipitation', 'MonthlyMinimumTemperature', 'DATE_HOUR', 'distance_to_neighbor', 'neighbor_lat', 'neighbor_lon', 'time_zone_id', 'UTC_DEP_DATETIME_LAG', 'UTC_DEP_DATETIME', DEP_DEL15, 'ORIGIN_AIRPORT_ID', 'DEST_AIRPORT_ID','ORIGIN_WAC', 'DEST_WAC', 'CANCELLED', 'CANCELLATION_CODE', 'SOURCE'
-
-# Could not use , 'flight_id'. Leads to buffer overflow error.
-# org.apache.spark.SparkException: Job aborted due to stage failure: Task 2 in stage 57.0 failed 4 times, most recent failure: Lost task 2.3 in stage 57.0 (TID 280) (10.139.64.6 executor 0): org.apache.spark.SparkException: Kryo serialization failed: Buffer overflow. Available: 0, required: 31
 
 # Is including this data leakage? 'DEP_TIME', 'DEP_HOUR', 
 
@@ -333,7 +275,7 @@ def runLogisticRegression(linearRegressionModel, testData):
     
     return metrics
     
-def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input, elasticNetParam_input, maxIter_input, threshold_input):
+def runBlockingTimeSeriesCrossValidation_LR(dataFrameInput, regParam_input, elasticNetParam_input, maxIter_input, threshold_input):
     """
     Conducts the Blocking Time Series Cross Validation.
     Accepts the full dataFrame of all years. 
@@ -347,136 +289,7 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input, elastic
     topMetrics = None
     topYear = None
     topModel = None
-    
-    # list all of the years that the data will be trained against.
-    listOfYears = dataFrameInput.select("YEAR").distinct().filter(col("YEAR") != 2021).rdd.flatMap(list).collect()
-    print("listOfYears:", listOfYears)
-
-    # Iterate through each of the individual years in the training data set.
-    for year in listOfYears:
-        
-        currentYear = year
-        print(f"Processing Year: {currentYear}")
-        print(f"@ {getCurrentDateTimeFormatted()}")
-        currentYearDF = dataFrameInput.filter(col("YEAR") == currentYear).cache()
-        
-        # Upscale the data such that there are roughly equal amounts of rows where DEP_DEL15 == 0 and DEP_DEL15 == 1, which aids in training.
-        
-        currentYearDF_upsampling_0 = currentYearDF.filter(col("DEP_DEL15") == 0)
-        print(f"@- df_testData0.count() = {currentYearDF_upsampling_0.count()}")
-        currentYearDF_upsampling_1 = currentYearDF.filter(col("DEP_DEL15") == 1)
-        print(f"@- df_testData1.count() = {currentYearDF_upsampling_1.count()}")
-
-        upsampling_ratio = (currentYearDF_upsampling_0.count() / currentYearDF_upsampling_1.count()) - 1
-
-        currentYearDF_upsampling_append = currentYearDF.filter(col("DEP_DEL15") == 1).sample(fraction = upsampling_ratio, withReplacement = True, seed = 261)
-        print(f"@- currentYearDF_upsampling_append.count() = {currentYearDF_upsampling_append.count()}")
-
-        currentYearDF_upsampled = currentYearDF.unionAll(currentYearDF_upsampling_append)
-        print(f"@- currentYearDF_upsampled.count() = {currentYearDF_upsampled.count()}")
-        
-        # Adds a percentage column to each year's data frame, with the percentage corresponding to percentage of the year's time. 
-        # 0% = earliest time that year. 100% = latest time that year.
-        preppedDataDF = currentYearDF_upsampled.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
-
-#        display(preppedDataDF)
-
-        # remove unneeded columns. All feature values are captured in "features". All the other retained features are for row tracking.
-        selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
-        dataset = preppedDataDF.select(selectedcols).cache()
-
-#        display(dataset)
-        
-        # The training set is the data from the 70% earliest data.
-        # Test set is the latter 30% of the data.
-        trainingData = dataset.filter(col("DEP_DATETIME_LAG_percent") <= .70)
-        trainingTestData = dataset.filter(col("DEP_DATETIME_LAG_percent") > .70)
-#        display(trainingTestData)
-        
-        # Create and train a logistic regression model for the year based on training data.
-        # Note: createLinearRegressionModel() function would not work here for some reason.
-        lr = LogisticRegression(labelCol="DEP_DEL15", featuresCol="features", regParam = regParam_input, elasticNetParam = elasticNetParam_input, maxIter = maxIter_input, threshold = threshold_input)
-        lrModel = lr.fit(trainingData)
-
-        currentYearMetrics = runLogisticRegression(lrModel, trainingTestData)
-        
-        # Print the year's data and evaluation metrics
-#        print(f"\n - {year}")
-#        print("trainingData Count:", trainingData.count())
-#        print("trainingTestData Count:", trainingTestData.count())
-#        print("categoricalColumns =", categoricalColumns)
-#        print("numericalCols =", numericCols)
-#        reportMetrics(currentYearMetrics)
-        
-        # Compare and store top models and metrics.
-        if topMetrics == None:
-            topMetrics = currentYearMetrics
-            topYear = year
-            topModel = lrModel
-        else:
-            if currentYearMetrics.precision(1.0) > topMetrics.precision(1.0):
-                topMetrics = currentYearMetrics
-                topYear = year
-                topModel = lrModel
-    
-    # TODO: Ensemble models across all years?
-    
-    # Print the metrics of the best model from the cross validated years.
-#    print("\n** Best Metrics **")
-#    print("topYear = %s" % topYear)
-#    print("categoricalColumns =", categoricalColumns)
-#    print("numericalCols =", numericCols)
-#    reportMetrics(topMetrics)
-#    print("Top Model:", topModel)
-    
-    print(f"@ Training Test Metrics")
-    reportMetrics(topMetrics)
-
-    print(f"@ Starting Test Evaluation")
-    print(f"@ {getCurrentDateTimeFormatted()}")
-    # Prepare 2021 Test Data
-    currentYearDF = dataFrameInput.filter(col("YEAR") == 2021).cache()
-    preppedDataDF = currentYearDF.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
-#        display(preppedDataDF)
-    selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
-    dataset = preppedDataDF.select(selectedcols).cache()
-#        display(dataset)
-
-    # Evaluate best model from cross validation against the test data frame of 2021 data, then print evaluation metrics.
-    testDataSet = dataset
-#    display(testDataSet)
-    lr = topModel
-    testMetrics = runLogisticRegression(topModel, testDataSet)
-
-    print(f"\n - 2021")
-    print("Model Parameters:")
-    print("regParam:", lr.getRegParam())
-    print("elasticNetParam:", lr.getElasticNetParam())
-    print("maxIter:", lr.getMaxIter())
-    print("threshold:", lr.getThreshold())
-#    print("Weights Col:", lr.getWeightCol())
-    print("testDataSet Count:", testDataSet.count())
-    reportMetrics(testMetrics)
-    saveMetricsToAzure_LR(lr, testMetrics)
-    print(f"@ Finised Test Evaluation")
-    print(f"@ {getCurrentDateTimeFormatted()}")
-    
-    
-    
-def runBlockingTimeSeriesCrossValidation_downsampling(dataFrameInput, regParam_input, elasticNetParam_input, maxIter_input, threshold_input):
-    """
-    Conducts the Blocking Time Series Cross Validation.
-    Accepts the full dataFrame of all years. 
-    Is hard coded to use pre-2021 data as training data, which it will cross validate against.
-    After all cross validations, will select best model from each year, and then apply the test 2021 data against it for final evaluation.
-    Prints metrics from final test evaluation at the end.
-    """
-    print(f"\n@ Starting runBlockingTimeSeriesCrossValidation")
-    print(f"@ {regParam_input}, {elasticNetParam_input}, {maxIter_input}, {threshold_input}")
-    print(f"@ {getCurrentDateTimeFormatted()}")
-    topMetrics = None
-    topYear = None
-    topModel = None
+    trainingRows = 0
     
     # list all of the years that the data will be trained against.
     listOfYears = dataFrameInput.select("YEAR").distinct().filter(col("YEAR") != 2021).rdd.flatMap(list).collect()
@@ -502,6 +315,7 @@ def runBlockingTimeSeriesCrossValidation_downsampling(dataFrameInput, regParam_i
         currentYearDF_downsampling_append = currentYearDF_downsampling_0.sample(fraction = downsampling_ratio, withReplacement = False, seed = 261)
         
         currentYearDF_downsampled = currentYearDF_downsampling_1.unionAll(currentYearDF_downsampling_append)
+        trainingRows += currentYearDF_downsampled.count()
         print(f"@- currentYearDF_downsampled.count() = {currentYearDF_downsampled.count()}")
         
         # Adds a percentage column to each year's data frame, with the percentage corresponding to percentage of the year's time. 
@@ -529,14 +343,6 @@ def runBlockingTimeSeriesCrossValidation_downsampling(dataFrameInput, regParam_i
 
         currentYearMetrics = runLogisticRegression(lrModel, trainingTestData)
         
-        # Print the year's data and evaluation metrics
-#        print(f"\n - {year}")
-#        print("trainingData Count:", trainingData.count())
-#        print("trainingTestData Count:", trainingTestData.count())
-#        print("categoricalColumns =", categoricalColumns)
-#        print("numericalCols =", numericCols)
-#        reportMetrics(currentYearMetrics)
-        
         # Compare and store top models and metrics.
         if topMetrics == None:
             topMetrics = currentYearMetrics
@@ -549,14 +355,6 @@ def runBlockingTimeSeriesCrossValidation_downsampling(dataFrameInput, regParam_i
                 topModel = lrModel
     
     # TODO: Ensemble models across all years?
-    
-    # Print the metrics of the best model from the cross validated years.
-#    print("\n** Best Metrics **")
-#    print("topYear = %s" % topYear)
-#    print("categoricalColumns =", categoricalColumns)
-#    print("numericalCols =", numericCols)
-#    reportMetrics(topMetrics)
-#    print("Top Model:", topModel)
     
     print(f"@ Training Test Metrics")
     reportMetrics(topMetrics)
@@ -590,11 +388,39 @@ def runBlockingTimeSeriesCrossValidation_downsampling(dataFrameInput, regParam_i
     print(f"@ Finised Test Evaluation")
     print(f"@ {getCurrentDateTimeFormatted()}")
     
+def resetMetricsToAzure_LR():
+    backup_metrics = spark.read.parquet(f"{blob_url}/logistic_regression_metrics")
+    backup_date_string = getCurrentDateTimeFormatted()
+    backup_metrics.write.parquet(f"{blob_url}/metrics_backups/logistic_regression_metrics-{backup_date_string}")
+    
+    columns = ["date_time","precision", "f0.5", "recall", "accuracy", "regParam", "elasticNetParam", "maxIter", "threshold"]
+    data = [(datetime.utcnow(), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0)]
+    rdd = spark.sparkContext.parallelize(data)
+    dfFromRDD = rdd.toDF(columns)
+    
+    dfFromRDD.write.mode('overwrite').parquet(f"{blob_url}/logistic_regression_metrics")
+    print("LR Metrics Reset")
+
+def saveMetricsToAzure_LR(input_model, input_metrics):
+    columns = ["date_time","precision", "f0.5", "recall", "accuracy", "regParam", "elasticNetParam", "maxIter", "threshold"]
+    data = [(datetime.utcnow(), input_metrics.precision(1), input_metrics.fMeasure(label = 1.0, beta = 0.5), \
+             input_metrics.recall(1), input_metrics.accuracy, input_model.getRegParam(), \
+             input_model.getElasticNetParam(), input_model.getMaxIter(), input_model.getThreshold())]
+    rdd = spark.sparkContext.parallelize(data)
+    dfFromRDD = rdd.toDF(columns)
+    
+    dfFromRDD.write.mode('append').parquet(f"{blob_url}/logistic_regression_metrics")
+    print("LR Metrics Saved Successfully!")+
+    
+# WARNING: Will Delete Current Metrics for Logistic Regression
+#resetMetricsToAzure_LR()
+# WARNING: Will Delete Current Metrics for Logistic Regression
+    
 
 # COMMAND ----------
 
 # Hyperparameter Tuning Parameter Grid
-# Each CV takes one hour. Do the math.
+# Each CV takes about 20 minutes.
 
 #regParamGrid = [0.0, 0.01, 0.5, 2.0]
 #elasticNetParamGrid = [0.0, 0.5, 1.0]
@@ -613,31 +439,10 @@ for regParam in regParamGrid:
             print(f"! maxIter = {maxIter}")
             for threshold in thresholdGrid:
                 print(f"! threshold = {threshold}")
-                runBlockingTimeSeriesCrossValidation(preppedDataDF, regParam, elasticNetParam, maxIter, threshold)
+                runBlockingTimeSeriesCrossValidation_LR(preppedDataDF, regParam, elasticNetParam, maxIter, threshold)
 print("! Job Finished!")
 print(f"! {getCurrentDateTimeFormatted()}\n")
 
-
-# COMMAND ----------
-
-# Downsampling Test
-
-regParamGrid = [0.0]
-elasticNetParamGrid = [0.0]
-maxIterGrid = [10]
-thresholdGrid = [0.5]
-
-for regParam in regParamGrid:
-    print(f"! regParam = {regParam}")
-    for elasticNetParam in elasticNetParamGrid:
-        print(f"! elasticNetParam = {elasticNetParam}")
-        for maxIter in maxIterGrid:
-            print(f"! maxIter = {maxIter}")
-            for threshold in thresholdGrid:
-                print(f"! threshold = {threshold}")
-                runBlockingTimeSeriesCrossValidation_downsampling(preppedDataDF, regParam, elasticNetParam, maxIter, threshold)
-print("! Job Finished!")
-print(f"! {getCurrentDateTimeFormatted()}\n")
 
 # COMMAND ----------
 
@@ -788,15 +593,6 @@ def runBlockingTimeSeriesCrossValidation_rf(dataFrameInput, input_numTrees, inpu
                 topModel = rfModel
     
     # TODO: Ensemble models across all years?
-    
-    # Print the metrics of the best model from the cross validated years.
-#    print("\n** Best Metrics **")
-#    print("topYear = %s" % topYear)
-#    print("categoricalColumns =", categoricalColumns)
-#    print("numericalCols =", numericCols)
-#    reportMetrics(topMetrics)
-#    print("Top Model:", topModel)
-    
 
     print(f"@ Starting Test Evaluation")
     print(f"@ {getCurrentDateTimeFormatted()}")
@@ -825,7 +621,34 @@ def runBlockingTimeSeriesCrossValidation_rf(dataFrameInput, input_numTrees, inpu
     saveMetricsToAzure_RF(precision, fPointFive, recall, accuracy, input_numTrees, input_maxDepth, input_maxBins)
     print(f"@ Finised Test Evaluation")
     print(f"@ {getCurrentDateTimeFormatted()}")
+  
+def resetMetricsToAzure_RF():
+    backup_metrics = spark.read.parquet(f"{blob_url}/random_forest_metrics")
+    backup_date_string = getCurrentDateTimeFormatted()
+    backup_metrics.write.parquet(f"{blob_url}/metrics_backups/random_forest_metrics-{backup_date_string}")
     
+    columns = ["date_time","precision", "f0.5", "recall", "accuracy", "numTrees", "maxDepth", "maxBins"]
+    data = [(datetime.utcnow(), 0.0, 0.0, 0.0, 0.0, 0, 0, 0)]
+    rdd = spark.sparkContext.parallelize(data)
+    dfFromRDD = rdd.toDF(columns)
+    
+    dfFromRDD.write.mode('overwrite').parquet(f"{blob_url}/random_forest_metrics")
+    print("RF Metrics Reset")
+
+def saveMetricsToAzure_RF(input_precision, input_fPointFive, input_recall, input_accuracy, input_numTrees, input_maxDepth, input_maxBins):
+    columns = ["date_time","precision", "f0.5", "recall", "accuracy", "numTrees", "maxDepth", "maxBins"]
+    data = [(datetime.utcnow(), input_precision, input_fPointFive, \
+             input_recall, input_accuracy, input_numTrees, \
+             input_maxDepth, input_maxBins)]
+    rdd = spark.sparkContext.parallelize(data)
+    dfFromRDD = rdd.toDF(columns)
+    
+    dfFromRDD.write.mode('append').parquet(f"{blob_url}/random_forest_metrics")
+    print("RF Metrics Saved Successfully!")
+
+# WARNING: Will Delete Current Metrics for Random Forest
+#resetMetricsToAzure_RF()
+# WARNING: Will Delete Current Metricsfor Random Forest
 
 # COMMAND ----------
 
@@ -885,49 +708,181 @@ display(current_metrics)
 
 # COMMAND ----------
 
-# 18 minutes
+def runSupportVectorMachine(svmModel, testData):
+    """
+    Applies a Support Vector Machine model to the test data provided, and return the metrics from the test evaluation.
+    """
+    predictions = svmModel.transform(testData)
+#    selected = predictions.select("DEP_DEL15", "prediction", "probability")
+#    display(selected)
+    metrics = MulticlassMetrics(predictions.select("DEP_DEL15", "prediction").rdd)
+    
+    return metrics
+    
+def runBlockingTimeSeriesCrossValidation_SVM(dataFrameInput, regParam_input, maxIter_input, threshold_input):
+    """
+    Conducts the Blocking Time Series Cross Validation.
+    Accepts the full dataFrame of all years. 
+    Is hard coded to use pre-2021 data as training data, which it will cross validate against.
+    After all cross validations, will select best model from each year, and then apply the test 2021 data against it for final evaluation.
+    Prints metrics from final test evaluation at the end.
+    """
+    print(f"\n@ Starting runBlockingTimeSeriesCrossValidation")
+    print(f"@ {regParam_input}, {maxIter_input}, {threshold_input}")
+    print(f"@ {getCurrentDateTimeFormatted()}")
+    topMetrics = None
+    topYear = None
+    topModel = None
+    trainingRows = 0
+    
+    # list all of the years that the data will be trained against.
+    listOfYears = dataFrameInput.select("YEAR").distinct().filter(col("YEAR") != 2021).rdd.flatMap(list).collect()
+    print("listOfYears:", listOfYears)
 
-print(f"@ {getCurrentDateTimeFormatted()}")
-testPreppedData_2017 = preppedDataDF.filter(col("YEAR") == 2017)
-testPreppedData_2021 = preppedDataDF.filter(col("YEAR") == 2021)
-print("Data Loaded")
-print(f"@ {getCurrentDateTimeFormatted()}")
+    # Iterate through each of the individual years in the training data set.
+    for year in listOfYears:
+        
+        currentYear = year
+        print(f"Processing Year: {currentYear}")
+        print(f"@ {getCurrentDateTimeFormatted()}")
+        currentYearDF = dataFrameInput.filter(col("YEAR") == currentYear).cache()
+        
+        # Downscale the data such that there are roughly equal amounts of rows where DEP_DEL15 == 0 and DEP_DEL15 == 1, which aids in training.
+        
+        currentYearDF_downsampling_0 = currentYearDF.filter(col("DEP_DEL15") == 0)
+        print(f"@- currentYearDF_downsampling_0.count() = {currentYearDF_downsampling_0.count()}")
+        currentYearDF_downsampling_1 = currentYearDF.filter(col("DEP_DEL15") == 1)
+        print(f"@- currentYearDF_downsampling_1.count() = {currentYearDF_downsampling_1.count()}")
 
-testPreppedData_2017_downsampling_0 = testPreppedData_2017.filter(col("DEP_DEL15") == 0).cache()
-#        print(f"@- currentYearDF_downsampling_0.count() = {currentYearDF_downsampling_0.count()}")
-testPreppedData_2017_downsampling_1 = testPreppedData_2017.filter(col("DEP_DEL15") == 1).cache()
-#        print(f"@- currentYearDF_downsampling_1.count() = {currentYearDF_downsampling_1.count()}")
+        downsampling_ratio = (currentYearDF_downsampling_1.count() / currentYearDF_downsampling_0.count())
 
-downsampling_ratio = (testPreppedData_2017_downsampling_1.count() / testPreppedData_2017_downsampling_0.count())
+        currentYearDF_downsampling_append = currentYearDF_downsampling_0.sample(fraction = downsampling_ratio, withReplacement = False, seed = 261)
+        
+        currentYearDF_downsampled = currentYearDF_downsampling_1.unionAll(currentYearDF_downsampling_append)
+        trainingRows += currentYearDF_downsampled.count()
+        print(f"@- currentYearDF_downsampled.count() = {currentYearDF_downsampled.count()}")
+        
+        # Adds a percentage column to each year's data frame, with the percentage corresponding to percentage of the year's time. 
+        # 0% = earliest time that year. 100% = latest time that year.
+        preppedDataDF = currentYearDF_downsampled.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
 
-testPreppedData_2017_downsampling_append = testPreppedData_2017_downsampling_0.sample(fraction = downsampling_ratio, withReplacement = False, seed = 261)
+#        display(preppedDataDF)
 
-testPreppedData_2017_downsampled = testPreppedData_2017_downsampling_1.unionAll(testPreppedData_2017_downsampling_append)
-#        print(f"@- currentYearDF_downsampled.count() = {currentYearDF_downsampled.count()}")
-print(f"@ testPreppedData_2017_downsampled(): {testPreppedData_2017_downsampled.count()}")    
-print(f"@ {getCurrentDateTimeFormatted()}")
-# Adds a percentage column to each year's data frame, with the percentage corresponding to percentage of the year's time. 
-# 0% = earliest time that year. 100% = latest time that year.
-preppedDataDF = testPreppedData_2017_downsampled.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG"))).cache()
+        # remove unneeded columns. All feature values are captured in "features". All the other retained features are for row tracking.
+        selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
+        dataset = preppedDataDF.select(selectedcols).cache()
+
+#        display(dataset)
+        
+        # The training set is the data from the 70% earliest data.
+        # Test set is the latter 30% of the data.
+        trainingData = dataset.filter(col("DEP_DATETIME_LAG_percent") <= .70)
+        trainingTestData = dataset.filter(col("DEP_DATETIME_LAG_percent") > .70)
+#        display(trainingTestData)
+        
+        # Create and train a logistic regression model for the year based on training data.
+        lsvc = LinearSVC(labelCol="DEP_DEL15", featuresCol="features", regParam = regParam_input, maxIter = maxIter_input, threshold = threshold_input)
+        lsvc_model = lsvc.fit(trainingData)
+
+        currentYearMetrics = runSupportVectorMachine(lsvc_model, trainingTestData)
+        
+        # Compare and store top models and metrics.
+        if topMetrics == None:
+            topMetrics = currentYearMetrics
+            topYear = year
+            topModel = lsvc_model
+        else:
+            if currentYearMetrics.precision(1.0) > topMetrics.precision(1.0):
+                topMetrics = currentYearMetrics
+                topYear = year
+                topModel = lsvc_model
+    
+    # TODO: Ensemble models across all years?
+    
+    print(f"@ Training Test Metrics")
+    reportMetrics(topMetrics)
+
+    print(f"@ Starting Test Evaluation")
+    print(f"@ {getCurrentDateTimeFormatted()}")
+    # Prepare 2021 Test Data
+    currentYearDF = dataFrameInput.filter(col("YEAR") == 2021).cache()
+    preppedDataDF = currentYearDF.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
+#        display(preppedDataDF)
+    selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
+    testDataSet = preppedDataDF.select(selectedcols).cache()
+#        display(dataset)
+
+    # Evaluate best model from cross validation against the test data frame of 2021 data, then print evaluation metrics.
+    testMetrics = runLogisticRegression(topModel, testDataSet)
+
+    print(f"\n - 2021")
+    print("Model Parameters:")
+    print("regParam:", topModel.getRegParam())
+    print("maxIter:", topModel.getMaxIter())
+    print("threshold:", topModel.getThreshold())
+#    print("Weights Col:", lr.getWeightCol())
+    print("testDataSet Count:", testDataSet.count())
+    reportMetrics(testMetrics)
+    saveMetricsToAzure_SVM(topModel, testMetrics)
+    print(f"@ Finised Test Evaluation")
+    print(f"@ {getCurrentDateTimeFormatted()}")
+    
+    
+def resetMetricsToAzure_SVM():
+#    backup_metrics = spark.read.parquet(f"{blob_url}/support_vector_machines_metrics")
+#    backup_date_string = getCurrentDateTimeFormatted()
+#    backup_metrics.write.parquet(f"{blob_url}/metrics_backups/support_vector_machines_metrics-{backup_date_string}")
+    
+    columns = ["date_time","precision", "f0.5", "recall", "accuracy", "regParam", "maxIter", "threshold"]
+    data = [(datetime.utcnow(), 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0)]
+    rdd = spark.sparkContext.parallelize(data)
+    dfFromRDD = rdd.toDF(columns)
+    
+    dfFromRDD.write.mode('overwrite').parquet(f"{blob_url}/support_vector_machines_metrics")
+    print("SVM Metrics Reset")
+
+def saveMetricsToAzure_SVM(input_model, input_metrics):
+    columns = ["date_time","precision", "f0.5", "recall", "accuracy", "regParam", "maxIter", "threshold"]
+    data = [(datetime.utcnow(), input_metrics.precision(1), input_metrics.fMeasure(label = 1.0, beta = 0.5), \
+             input_metrics.recall(1), input_metrics.accuracy, input_model.getRegParam(), \
+             input_model.getMaxIter(), input_model.getThreshold())]
+    rdd = spark.sparkContext.parallelize(data)
+    dfFromRDD = rdd.toDF(columns)
+    
+    dfFromRDD.write.mode('append').parquet(f"{blob_url}/support_vector_machines_metrics")
+    print("SVM Metrics Saved Successfully")
+    
+# WARNING: Will Delete Current Metrics for Logistic Regression
+#resetMetricsToAzure_SVM()
+# WARNING: Will Delete Current Metrics for Logistic Regression
+
+# COMMAND ----------
+
+# Hyperparameter Tuning Parameter Grid
+# Each CV takes one hour. Do the math.
+
+#regParamGrid = [0.0, 0.01, 0.5, 2.0]
+#maxIterGrid = [1, 5, 10]
+
+regParamGrid = [0.0]
+maxIterGrid = [10]
+thresholdGrid = [0.5]
+
+for regParam in regParamGrid:
+    print(f"! regParam = {regParam}")
+    for maxIter in maxIterGrid:
+        print(f"! maxIter = {maxIter}")
+        for threshold in thresholdGrid:
+            print(f"! threshold = {threshold}")
+            runBlockingTimeSeriesCrossValidation_SVM(preppedDataDF, regParam, maxIter, threshold)
+print("! Job Finished!")
+print(f"! {getCurrentDateTimeFormatted()}\n")
 
 
-lsvc = LinearSVC(labelCol="DEP_DEL15", featuresCol="features", maxIter=10)
-lsvc = lsvc.fit(preppedDataDF)
+# COMMAND ----------
 
-
-print("Model Trained")
-print(f"@ {getCurrentDateTimeFormatted()}")
-predictions = lsvc.transform(testPreppedData_2021)
-
-print("Model Evaluated")
-print(f"@ {getCurrentDateTimeFormatted()}")
-
-metrics = MulticlassMetrics(predictions.select("DEP_DEL15", "prediction").rdd)
-
-print("Precision = %s" % metrics.precision(1))
-print("F0.5 = %s" % metrics.fMeasure(label = 1.0, beta = 0.5))
-print("Recall = %s" % metrics.recall(1))
-print("Accuracy = %s" % metrics.accuracy)
+current_metrics = spark.read.parquet(f"{blob_url}/support_vector_machines_metrics")
+display(current_metrics)
 
 # COMMAND ----------
 
@@ -937,9 +892,45 @@ print("Accuracy = %s" % metrics.accuracy)
 
 # COMMAND ----------
 
-# GBT
+# GBT Test
 
-from pyspark.ml.classification import RandomForestClassifier
+from pyspark.ml.classification import GBTClassifier
+
+def runGradientBoostedTree(gbtModel, testData):
+    """
+    Applies a logistic regression model to the test data provided, and return the metrics from the test evaluation.
+    Realize now that the model input can be any model, and does not necessarily need to be logistic regression.
+    Maybe try using with other models?
+    """
+    predictions = gbtModel.transform(testData)
+#    selected = predictions.select("DEP_DEL15", "prediction", "probability")
+#    display(selected)
+
+    TP = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 1) & (col("prediction") == 1)).count()
+    print(f"TP = {TP}")
+    TN = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 0) & (col("prediction") == 0)).count()
+    print(f"TN = {TN}")
+    FP = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 0) & (col("prediction") == 1)).count()
+    print(f"FP = {FP}")
+    FN = predictions.select("DEP_DEL15", "prediction").filter((col("DEP_DEL15") == 1) & (col("prediction") == 0)).count()
+    print(f"FN = {FN}")
+
+    if (TP + FP) == 0:
+        precision = 0
+    else:
+        precision = TP / (TP + FP)
+
+    if (TP + FN) == 0:
+        recall = 0
+    else:
+        recall = TP / (TP + FN)
+
+    accuracy = (TN + TP) / (TN + TP + FP + FN)
+    
+    # Beta = 0.5, so (1 + (0.5 ^ 2)) = 1.25. Python didn't like (0.5 ^ 2) for some reason.
+    fPointFive = (1.25 * precision * recall) / ((0.25 * precision) + recall)
+    
+    return precision, fPointFive, recall, accuracy
 
 print(f"@ {getCurrentDateTimeFormatted()}")
 testPreppedData_2017 = preppedDataDF.filter(col("YEAR") == 2017)
@@ -964,22 +955,12 @@ print(f"@ {getCurrentDateTimeFormatted()}")
 # 0% = earliest time that year. 100% = latest time that year.
 preppedDataDF = testPreppedData_2017_downsampled.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG"))).cache()
 
-rf = RandomForestClassifier(featuresCol = 'features', labelCol = 'DEP_DEL15')
-rfModel = rf.fit(preppedDataDF)
+gbt = GBTClassifier(featuresCol = 'features', labelCol = 'DEP_DEL15', maxIter=10)
+gbt_model = gbt.fit(testPreppedData_2017)
 
-print("Model Trained")
-print(f"@ {getCurrentDateTimeFormatted()}")
-predictions = rfModel.transform(testPreppedData_2021)
+precision, fPointFive, recall, accuracy = runGradientBoostedTree(gbt_model, preppedDataDF)
 
-print("Model Evaluated")
-print(f"@ {getCurrentDateTimeFormatted()}")
-
-metrics = MulticlassMetrics(predictions.select("DEP_DEL15", "prediction").rdd)
-
-print("Precision = %s" % metrics.precision(1))
-print("F0.5 = %s" % metrics.fMeasure(label = 1.0, beta = 0.5))
-print("Recall = %s" % metrics.recall(1))
-print("Accuracy = %s" % metrics.accuracy)
+reportMetrics_rf(precision, fPointFive, recall, accuracy)
 
 # COMMAND ----------
 
