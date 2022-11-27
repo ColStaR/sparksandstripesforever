@@ -501,6 +501,47 @@ test_results['trained_model'][0].coefficients
 
 # COMMAND ----------
 
+# regParamGrid = [0.0, 0.01, 0.5, 2.0]
+# elasticNetParamGrid = [0.0, 0.5, 1.0]
+# maxIterGrid = [10, 50, 100]
+
+regParamGrid = [0.0] #, 0.01, 0.5, 2.0]
+elasticNetParamGrid = [0.0] #, 0.5, 1.0]
+maxIterGrid = [10] #, 50, 100]
+thresholds = [0.5] #, 0.6, 0.7, 0.8]
+
+grid_search = pd.DataFrame()
+
+for regParam in regParamGrid:
+    print(f"! regParam = {regParam}")
+    for elasticNetParam in elasticNetParamGrid:
+        print(f"! elasticNetParam = {elasticNetParam}")
+        for maxIter in maxIterGrid:
+            print(f"! maxIter = {maxIter}")
+            cv_stats = runBlockingTimeSeriesCrossValidation(preppedDataDF, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
+            test_results = predictTestData(cv_stats, preppedDataDF)
+            
+            grid_search = pd.concat([grid_search,test_results],axis=0)
+            
+                        
+print("! Job Finished!")
+print(f"! {getCurrentDateTimeFormatted()}\n")
+
+grid_search
+
+
+# COMMAND ----------
+
+grid_spark_DF = spark.createDataFrame(grid_search.drop(columns=['trained_model']))
+grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/logistic_regression_grid_CV")
+
+# COMMAND ----------
+
+# grid_spark_DF = spark.createDataFrame(grid_search)
+# grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/logistic_regression_grid_CV_withModel")
+
+# COMMAND ----------
+
 print(f"@ Starting Test Evaluation")
 print(f"@ {getCurrentDateTimeFormatted()}")
 # Prepare 2021 Test Data
