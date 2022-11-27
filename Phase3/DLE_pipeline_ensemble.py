@@ -377,7 +377,7 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input = 0.0, e
     Prints metrics from final test evaluation at the end.
     """
     print(f"\n@ Starting runBlockingTimeSeriesCrossValidation")
-    print(f"@ {regParam_input}, {elasticNetParam_input}, {maxIter_input}, {threshold_input}")
+    print(f"@ {regParam_input}, {elasticNetParam_input}, {maxIter_input}, {thresholds_list}")
     print(f"@ {getCurrentDateTimeFormatted()}")
     topMetrics = None
     topYear = None
