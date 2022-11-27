@@ -87,8 +87,8 @@ print("**Loading Data Frames")
 df_joined_data_all = spark.read.parquet(f"{blob_url}/joined_data_all")
 display(df_joined_data_all)
 
-df_joined_data_all_with_efeatures = spark.read.parquet(f"{blob_url}/joined_all_with_efeatures")
-display(df_joined_data_all_with_efeatures)
+#df_joined_data_all_with_efeatures = spark.read.parquet(f"{blob_url}/joined_all_with_efeatures")
+#display(df_joined_data_all_with_efeatures)
 
 df_joined_data_all_with_efeatures = spark.read.parquet(f"{blob_url}/joined_all_with_efeatures_v2_No2015")
 display(df_joined_data_all_with_efeatures)
@@ -124,9 +124,14 @@ df_joined_data_all_with_efeatures  = df_joined_data_all_with_efeatures.na.fill(v
 
 # COMMAND ----------
 
+# Cast pagerank feature from string to double
+df_joined_data_all_with_efeatures = df_joined_data_all_with_efeatures.withColumn("pagerank",df_joined_data_all_with_efeatures.pagerank.cast('double'))
+
+# COMMAND ----------
+
 # dataframe schema
-print(df_joined_data_all.count())
-df_joined_data_all.printSchema()
+print(df_joined_data_all_with_efeatures.count())
+df_joined_data_all_with_efeatures.printSchema()
 #print(df_joined_data_all.columns)
 
 # COMMAND ----------
@@ -382,6 +387,7 @@ def runBlockingTimeSeriesCrossValidation_LR(dataFrameInput, regParam_input, elas
     print("maxIter:", lr.getMaxIter())
     print("threshold:", lr.getThreshold())
 #    print("Weights Col:", lr.getWeightCol())
+    print("trainingRows Count:", trainingRows)
     print("testDataSet Count:", testDataSet.count())
     reportMetrics(testMetrics)
     saveMetricsToAzure_LR(lr, testMetrics)
@@ -410,7 +416,7 @@ def saveMetricsToAzure_LR(input_model, input_metrics):
     dfFromRDD = rdd.toDF(columns)
     
     dfFromRDD.write.mode('append').parquet(f"{blob_url}/logistic_regression_metrics")
-    print("LR Metrics Saved Successfully!")+
+    print("LR Metrics Saved Successfully!")
     
 # WARNING: Will Delete Current Metrics for Logistic Regression
 #resetMetricsToAzure_LR()
@@ -426,8 +432,8 @@ def saveMetricsToAzure_LR(input_model, input_metrics):
 #elasticNetParamGrid = [0.0, 0.5, 1.0]
 #maxIterGrid = [1, 5, 10]
 
-regParamGrid = [0.0, 0.1]
-elasticNetParamGrid = [0, 0.5]
+regParamGrid = [0.0]
+elasticNetParamGrid = [0]
 maxIterGrid = [10]
 thresholdGrid = [0.5]
 
