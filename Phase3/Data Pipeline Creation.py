@@ -161,7 +161,7 @@ for categoricalCol in categoricalColumns:
 # Create vectors for numeric and categorical variables
 
 # Join v2 columns:
-numericCols = ['CRS_ELAPSED_TIME', 'DISTANCE','ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed']
+numericCols = ['CRS_ELAPSED_TIME', 'DISTANCE','ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'perc_delay', 'pagerank']
 # Features Not Included: 'DEP_DATETIME','DATE', 'HourlyWindGustSpeed', 'MonthlyMeanTemperature', 'MonthlyMaximumTemperature', 'MonthlyGreatestSnowDepth', 'MonthlyGreatestSnowfall', 'MonthlyTotalSnowfall', 'MonthlyTotalLiquidPrecipitation', 'MonthlyMinimumTemperature', 'DATE_HOUR', 'time_zone_id', 'UTC_DEP_DATETIME_LAG', 'UTC_DEP_DATETIME', 'HourlyPressureChange', 'distance_to_neighbor', 'neighbor_lat', 'neighbor_lon'
 
 # scaler = StandardScaler(inputCol=numericCols, outputCol="scaledFeatures", withStd=True, withMean=False)
@@ -201,8 +201,8 @@ pipelineModel = partialPipeline.fit(df_joined_data_all_with_efeatures)
 preppedDataDF = pipelineModel.transform(df_joined_data_all_with_efeatures).cache()
 
 # Apply pipeline to Full Time With EFeatures, Not One-Hot Encoded
-pipelineModel_NoEncoding = partialPipeline_NoEncoding.fit(df_joined_data_all_with_efeatures)
-preppedDataDF_NoEncoding = pipelineModel_NoEncoding.transform(df_joined_data_all_with_efeatures).cache()
+#pipelineModel_NoEncoding = partialPipeline_NoEncoding.fit(df_joined_data_all_with_efeatures)
+#preppedDataDF_NoEncoding = pipelineModel_NoEncoding.transform(df_joined_data_all_with_efeatures).cache()
 
 # Apply pipeline to Pre-2021
 #pipelineModel_pre2021 = partialPipeline.fit(df_joined_data_pre2021)
@@ -829,9 +829,9 @@ def runBlockingTimeSeriesCrossValidation_SVM(dataFrameInput, regParam_input, max
     
     
 def resetMetricsToAzure_SVM():
-#    backup_metrics = spark.read.parquet(f"{blob_url}/support_vector_machines_metrics")
-#    backup_date_string = getCurrentDateTimeFormatted()
-#    backup_metrics.write.parquet(f"{blob_url}/metrics_backups/support_vector_machines_metrics-{backup_date_string}")
+    backup_metrics = spark.read.parquet(f"{blob_url}/support_vector_machines_metrics")
+    backup_date_string = getCurrentDateTimeFormatted()
+    backup_metrics.write.parquet(f"{blob_url}/metrics_backups/support_vector_machines_metrics-{backup_date_string}")
     
     columns = ["date_time","precision", "f0.5", "recall", "accuracy", "regParam", "maxIter", "threshold"]
     data = [(datetime.utcnow(), 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0)]

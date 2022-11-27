@@ -505,17 +505,41 @@
 # MAGIC 
 # MAGIC ## Rebalancing Data during Training
 # MAGIC 
-# MAGIC During the EDA, we noted that the data set was distributed unevenly, with data for non-delayed flights representing ~80% of the data while delayed flights represented about 20%. At first, we thought this imbalance would be within acceptable measures for training, and that training on this imbalanced data set would be preferable to introducing the noise caused by artificial upsampling or downsampling. However, seeing the results of our baseline metrics made us reconsider this position, as we now believed that there were not enough data of delayed flights for our models to properly train on.
+# MAGIC During the EDA, we noted that the data set was distributed unevenly, with data for non-delayed flights representing ~80% of the data while delayed flights represented about 20%. At first, we thought this imbalance would be within acceptable measures for training, and that training on this imbalanced data set would be preferable to introducing the noise caused by artificial upsampling or downsampling. However, seeing the results of our baseline metrics made us reconsider this position, as we now believe that there were not enough data of delayed flights for our models to properly train on, resulting in models incorrectly trending towards making no-delay predictions. As such, our pipeline now includes a downsampling step, which decreases the number of rows for non-delayed flights via random sampling until it approximately matches the same number of delayed flights.
+# MAGIC 
+# MAGIC This downsampling process ensures that there are approximately even numbers of rows representing delayed flights and non-delayed flights. Having equivalent distributions of delayed and non-delayed flights allowed the models to train more accurately. As seen below, the performance metrics for two identical logistic regression models with the same parameters on the same data set, one without downsampling has dramatically worse precision metrics compared to the model that includes downsampling. Note the dramatic increase in the precision value.
+# MAGIC 
+# MAGIC | Metric    | With Downsampling | Without Downsampling |
+# MAGIC |-----------|-------------------|----------------------|
+# MAGIC | Precision | 0.625711615       | 0.029235972          |
+# MAGIC | F0.5      | 0.491084249       | 0.054158388          |
+# MAGIC | Recall    | 0.26393365        | 0.367069134          |
+# MAGIC | Accuracy  | 0.604428916       | 0.809395177          |
+# MAGIC 
+# MAGIC Furthermore, there is a significant time savings with downsampling as well since much fewer rows need to be parsed through for every operation, cutting the required run time for model training in half. As a result of these two benefits, all of our models now include downsampling as part of their training pipeline.
 # MAGIC 
 # MAGIC #### Upsampling VS Downsampling
 # MAGIC 
+# MAGIC After realizing the benenficial impact of rebalancing our data, we had initially sought to rebalance the data via artificial upsampling. After we had endless technical issues implementing SMOTE via the imblearn library, we successfully implemented artificial upsampling by using the MLLib's sample() function to randomly select and then add duplicate rows to the delayed flights data. With this method, we could increase the number of delayed flights in the distribution to match that of the non-delayed flights, thus creating an equivalent number of rows for the models to train on. While run-time for training models increased by about half, we believed that the increase in training rows would benefit the model's effectiveness.
+# MAGIC 
+# MAGIC After some experimentation with upsampling and downsampling, we soon realized that both methods resulted in very similar model performance. The table below shows the performance metrics for two identical logistic regression models with the same parameters on the same data set, one with upsampling and another with downsampling. Note how similar each metric is.
+# MAGIC 
+# MAGIC | Metric    | Upsampling  | Downsampling |
+# MAGIC |-----------|-------------|--------------|
+# MAGIC | Precision | 0.622251122 | 0.625711615  |
+# MAGIC | F0.5      | 0.49051794  | 0.491084249  |
+# MAGIC | Recall    | 0.265601834 | 0.26393365   |
+# MAGIC | Accuracy  | 0.608348208 | 0.604428916  |
+# MAGIC 
+# MAGIC One benefit that downsampling had over upsampling is run-time performance. Because upsampling dramatically increases the size of the data while downsampling dramatically decreases it, downsampling had a far superior run-time compared to upsampling; a downsampled model evaluation would take 50% of the time that an identical upsampled evaluation would take. Because of the dramatic time savings paired with the similarity in model performance, downsampling was chosen over upsampling as our pipeline's method for redistributing data.
+# MAGIC 
 # MAGIC ## Model Ensembling
+# MAGIC 
+# MAGIC @ Deanna
 # MAGIC 
 # MAGIC ## Automated Metrics Saving
 # MAGIC 
-# MAGIC ## New Features
-# MAGIC 
-# MAGIC Described below.
+# MAGIC As part of the hyperparameter tuning task, we needed a way to automatically save model performance metrics after each test evaluation. This would allow us to do hyperparameter tuning tasks overnight while still capturing the model metrics needed for model comparison. As such, we created functions for saving model parameters and metrics after every test evaluation to a parque file, which could then be saved and retrieved at will from the Azure data storage. This made the task of creating and evaluating models much easier to handle, as metric collection is being handled automatically. 
 # MAGIC 
 # MAGIC ### Image of Updated Pipeline
 # MAGIC 
@@ -528,6 +552,8 @@
 # MAGIC Nina, Nash
 # MAGIC 
 # MAGIC # Added Features
+# MAGIC 
+# MAGIC In addition to the pipeline changes, a number of new features were created and introduced to our joined data set. Many of these features contain highly predictive elements, leaning heavily into tracking the frequency of certain events occurring. These new features are described below.
 # MAGIC 
 # MAGIC ## Flight Previously Delayed Indicator
 # MAGIC 
