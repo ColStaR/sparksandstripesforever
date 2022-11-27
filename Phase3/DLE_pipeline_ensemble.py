@@ -345,7 +345,10 @@ def testModelPerformance(predictions):
     
     
     def FScore(beta, precision, recall):
-        F = (1 + beta**2) * (precision * recall) / ((beta**2 * precision) + recall)
+        if precision + recall == 0:
+            F = 0
+        else:
+            F = (1 + beta**2) * (precision * recall) / ((beta**2 * precision) + recall)
         return F
     
     metrics = MulticlassMetrics(predictions.select("DEP_DEL15", "prediction").rdd)
@@ -355,8 +358,15 @@ def testModelPerformance(predictions):
     FP = predictions.filter((col("DEP_DEL15")==0) & (col("prediction")==1)).count()
     FN = predictions.filter((col("DEP_DEL15")==1) & (col("prediction")==0)).count()
 
-    precision = TP / (TP + FP)
-    recall = TP / (TP + FN)
+    if TP + FP == 0:
+        precision = 0
+    else:
+        precision = TP / (TP + FP)
+        
+    if TP + FN == 0:
+        recall = 0
+    else:
+        recall = TP / (TP + FN)
     
     F1 = FScore(1, precision, recall)
     F05 = FScore(0.5, precision, recall)
@@ -508,16 +518,19 @@ thresholds = [0.5, 0.6, 0.7, 0.8]
 
 grid_search = pd.DataFrame()
 
-for regParam in regParamGrid:
-    print(f"! regParam = {regParam}")
+for maxIter in maxIterGrid:
+    print(f"! maxIter = {maxIter}")
     for elasticNetParam in elasticNetParamGrid:
         print(f"! elasticNetParam = {elasticNetParam}")
-        for maxIter in maxIterGrid:
-            print(f"! maxIter = {maxIter}")
-            cv_stats = runBlockingTimeSeriesCrossValidation(preppedDataDF, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
-            test_results = predictTestData(cv_stats, preppedDataDF)
-            
-            grid_search = pd.concat([grid_search,test_results],axis=0)
+        for regParam in regParamGrid:
+            print(f"! regParam = {regParam}")
+            try:
+                cv_stats = runBlockingTimeSeriesCrossValidation(preppedDataDF, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
+                test_results = predictTestData(cv_stats, preppedDataDF)
+
+                grid_search = pd.concat([grid_search,test_results],axis=0)
+            except:
+                pass
             
                         
 print("! Job Finished!")
