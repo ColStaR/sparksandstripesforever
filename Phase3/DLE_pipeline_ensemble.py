@@ -501,14 +501,10 @@ test_results['trained_model'][0].coefficients
 
 # COMMAND ----------
 
-# regParamGrid = [0.0, 0.01, 0.5, 2.0]
-# elasticNetParamGrid = [0.0, 0.5, 1.0]
-# maxIterGrid = [10, 50, 100]
-
-regParamGrid = [0.0] #, 0.01, 0.5, 2.0]
-elasticNetParamGrid = [0.0] #, 0.5, 1.0]
-maxIterGrid = [10] #, 50, 100]
-thresholds = [0.5] #, 0.6, 0.7, 0.8]
+regParamGrid = [0.0, 0.01, 0.5, 2.0]
+elasticNetParamGrid = [0.0, 0.5, 1.0]
+maxIterGrid = [10, 50, 100]
+thresholds = [0.5, 0.6, 0.7, 0.8]
 
 grid_search = pd.DataFrame()
 
