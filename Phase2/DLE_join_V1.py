@@ -1,8 +1,8 @@
 # Databricks notebook source
-data_size = '_3m'
+# data_size = '_3m'
 # data_size = '_6m'
 # data_size = '_1y'
-# data_size = ''
+data_size = ''  # all
 
 # COMMAND ----------
 
@@ -56,7 +56,8 @@ df_airlines = spark.read.parquet(f"{data_BASE_DIR}parquet_airlines_data{data_siz
                         .select('QUARTER','MONTH','DAY_OF_MONTH','DAY_OF_WEEK','FL_DATE','OP_UNIQUE_CARRIER','TAIL_NUM','OP_CARRIER_FL_NUM',
                                 'ORIGIN_AIRPORT_ID','ORIGIN_AIRPORT_SEQ_ID','ORIGIN','ORIGIN_STATE_ABR','ORIGIN_WAC',
                                 'DEST', 'DEST_AIRPORT_ID','DEST_AIRPORT_SEQ_ID','DEST_STATE_ABR','DEST_WAC','CRS_DEP_TIME',
-                                'DEP_TIME','DEP_DEL15', 'DEP_DELAY','CANCELLED','CANCELLATION_CODE','CRS_ELAPSED_TIME','DISTANCE','YEAR')
+                                'DEP_TIME','DEP_DEL15', 'DEP_DELAY', 'DIVERTED', 'DIV_AIRPORT_LANDINGS','CANCELLED','CANCELLATION_CODE',
+                                'CRS_ELAPSED_TIME','DISTANCE','YEAR')
 
 df_airlines = df_airlines.withColumn("CRS_DEP_TIME", concat(lit('000'), col("CRS_DEP_TIME").cast(StringType())) ) \
                          .withColumn("DEP_HOUR", expr("substring(CRS_DEP_TIME, -4, 2)") ) \
@@ -144,7 +145,7 @@ df_final = df_airlines.join(airport_weather, ['DEP_DATETIME_LAG','ORIGIN']).cach
 
 # COMMAND ----------
 
-df_final.select('ORIGIN').count() # 40933735 rows for all data, 1353640 for 3m data
+# df_final.select('ORIGIN').count() # 40933735 rows for all data, 1353640 for 3m data
 
 # COMMAND ----------
 
