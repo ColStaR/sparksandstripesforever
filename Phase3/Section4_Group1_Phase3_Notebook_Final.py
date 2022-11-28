@@ -51,7 +51,7 @@
 
 # MAGIC %md
 # MAGIC 
-# MAGIC ## Links to Notebooks
+# MAGIC ## Links to Project Notebooks
 # MAGIC 
 # MAGIC [Link to Phase 1 Notebook](https://adb-731998097721284.4.azuredatabricks.net/?o=731998097721284#notebook/364123876153624/command/4295587629775265)
 # MAGIC 
@@ -62,6 +62,8 @@
 # MAGIC [Link to Phase 2 Notebook in GitHub](https://github.com/ColStaR/sparksandstripesforever/blob/main/Phase2/Section4_Group1_Phase2_Notebook_Final.py)
 # MAGIC 
 # MAGIC [Link to Phase 3 Notebook](https://adb-731998097721284.4.azuredatabricks.net/?o=731998097721284#notebook/2647101326237439/command/2647101326237443)
+# MAGIC 
+# MAGIC [Link to Phase 3 Notebook in GitHub](https://github.com/ColStaR/sparksandstripesforever/blob/main/Phase3/Section4_Group1_Phase3_Notebook_Final.py)
 
 # COMMAND ----------
 
