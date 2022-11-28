@@ -374,11 +374,48 @@ def testModelPerformance(predictions):
     accuracy = (TP + TN) / (TP + TN + FP + FN)
     
     return precision, recall, F05, F1, accuracy
+  
+
+def downsampleYearly(dataFrameInput):
+    
+    ###### TO DO: Might be able to extract distinct years without converting to rdd
+    listOfYears = dataFrameInput.select("YEAR").distinct().filter(col("YEAR") != 2021).rdd.flatMap(list).collect()
+    
+    downsampledDF = None
+
+    for currentYear in listOfYears:
+
+        print(f"Processing Year: {currentYear}")
+        print(f"@ {getCurrentDateTimeFormatted()}")
+        currentYearDF = dataFrameInput.filter(col("YEAR") == currentYear).cache()
+
+        # Upscale the data such that there are roughly equal amounts of rows where DEP_DEL15 == 0 and DEP_DEL15 == 1, which aids in training.
+
+        ###### TO DO: Do downsampling outside of function first, then never have to run this again
+        currentYearDF_downsampling_0 = currentYearDF.filter(col("DEP_DEL15") == 0)
+        print(f"@- currentYearDF_downsampling_0.count() = {currentYearDF_downsampling_0.count()}")
+        currentYearDF_downsampling_1 = currentYearDF.filter(col("DEP_DEL15") == 1)
+        print(f"@- currentYearDF_downsampling_1.count() = {currentYearDF_downsampling_1.count()}")
+
+        downsampling_ratio = (currentYearDF_downsampling_1.count() / currentYearDF_downsampling_0.count())
+
+        currentYearDF_downsampling_append = currentYearDF_downsampling_0.sample(fraction = downsampling_ratio, withReplacement = False, seed = 261)
+
+        currentYearDF_downsampled = currentYearDF_downsampling_1.unionAll(currentYearDF_downsampling_append)
+        print(f"@- currentYearDF_downsampled.count() = {currentYearDF_downsampled.count()}")
+        
+        if downsampledDF == None:
+            downsampledDF = currentYearDF_downsampled
+        else:
+            downsampledDF = downsampledDF.unionALL(currentYearDF_downsampled)
+            print(f"@- downsampledDF.count() = {downsampledDF.count()}")
+            
+    return downsampledDF, listOfYears
     
 
 # COMMAND ----------
 
-def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input = 0.0, elasticNetParam_input = 0, maxIter_input = 10, thresholds_list = [0.5, 0.7]):
+def runBlockingTimeSeriesCrossValidation(dataFrameInput, listOfYears = [2015, 2016, 2017, 2018, 2019, 2020], regParam_input = 0.0, elasticNetParam_input = 0, maxIter_input = 10, thresholds_list = [0.5, 0.7]):
     """
     Conducts the Blocking Time Series Cross Validation.
     Accepts the full dataFrame of all years. 
@@ -392,38 +429,38 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, regParam_input = 0.0, e
     topMetrics = None
     topYear = None
     topModel = None
-
+    
     # list all of the years that the data will be trained against.
-    listOfYears = dataFrameInput.select("YEAR").distinct().filter(col("YEAR") != 2021).rdd.flatMap(list).collect()
+#     listOfYears = dataFrameInput.select("YEAR").distinct().filter(col("YEAR") != 2021).rdd.flatMap(list).collect()
     print("listOfYears:", listOfYears)
 
     cv_stats = pd.DataFrame()
 
     # Iterate through each of the individual years in the training data set.
-    for year in listOfYears:
+    for currentYear in listOfYears:
 
-        currentYear = year
         print(f"Processing Year: {currentYear}")
         print(f"@ {getCurrentDateTimeFormatted()}")
-        currentYearDF = dataFrameInput.filter(col("YEAR") == currentYear).cache()
+        currentYearDF_downsampled = dataFrameInput.filter(col("YEAR") == currentYear).cache()
 
         # Upscale the data such that there are roughly equal amounts of rows where DEP_DEL15 == 0 and DEP_DEL15 == 1, which aids in training.
 
+#         ###### TO DO: Do downsampling outside of function first, then never have to run this again
+#         currentYearDF_downsampling_0 = currentYearDF.filter(col("DEP_DEL15") == 0)
+#         print(f"@- currentYearDF_downsampling_0.count() = {currentYearDF_downsampling_0.count()}")
+#         currentYearDF_downsampling_1 = currentYearDF.filter(col("DEP_DEL15") == 1)
+#         print(f"@- currentYearDF_downsampling_1.count() = {currentYearDF_downsampling_1.count()}")
 
-        currentYearDF_downsampling_0 = currentYearDF.filter(col("DEP_DEL15") == 0)
-        print(f"@- currentYearDF_downsampling_0.count() = {currentYearDF_downsampling_0.count()}")
-        currentYearDF_downsampling_1 = currentYearDF.filter(col("DEP_DEL15") == 1)
-        print(f"@- currentYearDF_downsampling_1.count() = {currentYearDF_downsampling_1.count()}")
+#         downsampling_ratio = (currentYearDF_downsampling_1.count() / currentYearDF_downsampling_0.count())
 
-        downsampling_ratio = (currentYearDF_downsampling_1.count() / currentYearDF_downsampling_0.count())
+#         currentYearDF_downsampling_append = currentYearDF_downsampling_0.sample(fraction = downsampling_ratio, withReplacement = False, seed = 261)
 
-        currentYearDF_downsampling_append = currentYearDF_downsampling_0.sample(fraction = downsampling_ratio, withReplacement = False, seed = 261)
-
-        currentYearDF_downsampled = currentYearDF_downsampling_1.unionAll(currentYearDF_downsampling_append)
-        print(f"@- currentYearDF_downsampled.count() = {currentYearDF_downsampled.count()}")
+#         currentYearDF_downsampled = currentYearDF_downsampling_1.unionAll(currentYearDF_downsampling_append)
+#         print(f"@- currentYearDF_downsampled.count() = {currentYearDF_downsampled.count()}")
 
         # Adds a percentage column to each year's data frame, with the percentage corresponding to percentage of the year's time. 
         # 0% = earliest time that year. 100% = latest time that year.
+        ######## TO DO: THIS MIGHT BE FASTER AS JUST AN ORDERBY + COUNT + HEAD/TAIL - worth testing
         preppedDF = currentYearDF_downsampled.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
 
         # remove unneeded columns. All feature values are captured in "features". All the other retained features are for row tracking.
@@ -507,14 +544,14 @@ test_results
 
 # COMMAND ----------
 
-test_results['trained_model'][0].coefficients
-
-# COMMAND ----------
-
 regParamGrid = [0.0, 0.01, 0.5, 2.0]
 elasticNetParamGrid = [0.0, 0.5, 1.0]
-maxIterGrid = [10, 50, 100]
+maxIterGrid = [5, 10, 50]
 thresholds = [0.5, 0.6, 0.7, 0.8]
+
+
+downsampledDF, listOfYears = downsampleYearly(preppedDataDF)
+
 
 grid_search = pd.DataFrame()
 
@@ -525,7 +562,7 @@ for maxIter in maxIterGrid:
         for regParam in regParamGrid:
             print(f"! regParam = {regParam}")
             try:
-                cv_stats = runBlockingTimeSeriesCrossValidation(preppedDataDF, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
+                cv_stats = runBlockingTimeSeriesCrossValidation(downsampledDF, listOfYears, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
                 test_results = predictTestData(cv_stats, preppedDataDF)
 
                 grid_search = pd.concat([grid_search,test_results],axis=0)
@@ -546,8 +583,20 @@ grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/logistic_regression_g
 
 # COMMAND ----------
 
-# grid_spark_DF = spark.createDataFrame(grid_search)
-# grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/logistic_regression_grid_CV_withModel")
+# grid_search['trained_model'][0].coefficients
+
+len(list(grid_search['trained_model'].iloc[0].coefficients))
+
+# COMMAND ----------
+
+# stages[0].getInputCol()
+# stages[0].getOutputCol()
+
+# stages[-1].getOutputCol()
+
+# stages[-1].getInputCols()
+
+display(preppedDataDF.select('ORIGIN'))
 
 # COMMAND ----------
 
