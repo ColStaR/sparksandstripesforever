@@ -389,6 +389,31 @@ df_all = df_all.withColumn(
 
 # COMMAND ----------
 
+# Azure Storage Container info
+from pyspark.sql.functions import col, max
+
+blob_container = "sasfcontainer" # The name of your container created in https://portal.azure.com
+storage_account = "sasfstorage" # The name of your Storage account created in https://portal.azure.com
+secret_scope = "sasfscope" # The name of the scope created in your local computer using the Databricks CLI
+secret_key = "sasfkey" # The name of the secret key created in your local computer using the Databricks CLI 
+blob_url = f"wasbs://{blob_container}@{storage_account}.blob.core.windows.net"
+mount_path = "/mnt/mids-w261"
+
+# SAS Token login
+spark.conf.set(
+  f"fs.azure.sas.{blob_container}.{storage_account}.blob.core.windows.net",
+  dbutils.secrets.get(scope = secret_scope, key = secret_key)
+)
+
+PageranksByYear = spark.read.csv(f"{blob_url}/PageranksByYear.csv", header=True)
+PageranksByYear = PageranksByYear.withColumnRenamed('YEAR','YEAR2').distinct()
+
+PageranksByYear = PageranksByYear.withColumn("pagerank",PageranksByYear.pagerank.cast('double'))
+display(PageranksByYear)
+
+
+# COMMAND ----------
+
 # MAGIC %md 
 # MAGIC 
 # MAGIC # 6. Create Machine Learning Data Pipeline

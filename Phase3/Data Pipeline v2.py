@@ -1,9 +1,4 @@
 # Databricks notebook source
-grid_spark_DF = spark.createDataFrame(grid_search.drop(columns=['trained_model']))
-grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/logistic_regression_grid_CV")
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC 
 # MAGIC # Data Pipeline Creation 
@@ -389,11 +384,11 @@ def saveMetricsToAzure_LR(input_model, input_metrics):
 # COMMAND ----------
 
 # Hyperparameter Tuning Parameter Grid for Logistic Regression
-# Each CV takes about 20 minutes.
+# Each CV takes about 10 minutes.
 
-regParamGrid = [0.0, 0.01, 0.5, 2.0]
-elasticNetParamGrid = [0.0, 0.5, 1.0]
-maxIterGrid = [10, 50, 100]
+regParamGrid = [0.0]
+elasticNetParamGrid = [0.0]
+maxIterGrid = [10
 thresholds = [0.5, 0.6, 0.7, 0.8]
 
 grid_search = pd.DataFrame()
