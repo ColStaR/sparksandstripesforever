@@ -58,11 +58,6 @@ spark.conf.set(
 
 # COMMAND ----------
 
-def getCurrentDateTimeFormatted():
-    return str(datetime.utcnow()).replace(" ", "-").replace(":", "-").replace(".", "-")
-
-# COMMAND ----------
-
 # Load Dataframes
 print("**Loading Data")
 
@@ -92,7 +87,7 @@ df_joined_data_all_with_efeatures.printSchema()
 
 # Convert categorical features to One Hot Encoding
 
-categoricalColumns = ['ORIGIN', 'QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'FL_DATE', 'OP_UNIQUE_CARRIER', 'TAIL_NUM', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_STATE_ABR',  'DEST_AIRPORT_SEQ_ID', 'DEST_STATE_ABR', 'CRS_DEP_TIME', 'YEAR', 'AssumedEffect', 'is_prev_delayed', 'is_prev_diverted']
+categoricalColumns = ['ORIGIN', 'QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'FL_DATE', 'OP_UNIQUE_CARRIER', 'TAIL_NUM', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_STATE_ABR',  'DEST_AIRPORT_SEQ_ID', 'DEST_STATE_ABR', 'CRS_DEP_TIME', 'YEAR', 'AssumedEffect', 'is_prev_delayed']
 
 stages = [] # stages in Pipeline
 
@@ -122,7 +117,6 @@ assemblerInputs = [c + "classVec" for c in categoricalColumns] + numericCols
 assembler = VectorAssembler(inputCols=assemblerInputs, outputCol="features").setHandleInvalid("skip")
 
 stages += [assembler]
-stages_NoEncoding += [assembler]
 
 #print(stages)
 
@@ -166,6 +160,9 @@ preppedDataDF = pipelineModel.transform(df_joined_data_all_with_efeatures).cache
 # MAGIC # Generic Functions
 
 # COMMAND ----------
+
+def getCurrentDateTimeFormatted():
+    return str(datetime.utcnow()).replace(" ", "-").replace(":", "-").replace(".", "-")
 
 def runModel(inputModel, testData):
     """
@@ -222,25 +219,52 @@ def testModelPerformance(predictions):
     accuracy = (TP + TN) / (TP + TN + FP + FN)
     
     return precision, recall, F05, F1, accuracy
-
-
-def getDownsampledDataFrame(inputDF):
+  
+def downsampleYearly(dataFrameInput):
     """
-    Rebalances dataframe based on DEP_DEL15 feature by returning a downsampled dataframe
-    such that the distributions for DEP_DEL15's bool values are equivalent.
+    Rebalances dataframe based on DEP_DEL15 feature for all years by returning a downsampled dataframe
+    such that the distributions for DEP_DEL15's bool values are equivalent for every year.
     """
-    inputDF_downsampling_0 = inputDF.filter(col("DEP_DEL15") == 0)
-    print(f"@- inputDF_downsampling_0.count() = {inputDF_downsampling_0.count()}")
-    inputDF_downsampling_1 = inputDF.filter(col("DEP_DEL15") == 1)
-    print(f"@- inputDF_downsampling_1.count() = {inputDF_downsampling_1.count()}")
+    print(f"Begin downsampleYearly()")
+    print(f"@ {getCurrentDateTimeFormatted()}")
+        
+    ###### TO DO: Might be able to extract distinct years without converting to rdd
+    listOfYears = dataFrameInput.select("YEAR").distinct().filter(col("YEAR") != 2021).rdd.flatMap(list).collect()
+    print(listOfYears)
+    
+    downsampledDF = None
 
-    downsampling_ratio = (inputDF_downsampling_1.count() / inputDF_downsampling_0.count())
+    for currentYear in listOfYears:
 
-    inputDF_downsampling_append = inputDF_downsampling_0.sample(fraction = downsampling_ratio, withReplacement = False, seed = 261)
+        print(f"Processing Year: {currentYear}")
+        print(f"@ {getCurrentDateTimeFormatted()}")
+        currentYearDF = dataFrameInput.filter(col("YEAR") == currentYear).cache()
 
-    inputDF_downsampled = inputDF_downsampling_1.unionAll(inputDF_downsampling_append)
-    print(f"@- inputDF_downsampled.count() = {inputDF_downsampled.count()}")
-    return inputDF_downsampled
+        # Upscale the data such that there are roughly equal amounts of rows where DEP_DEL15 == 0 and DEP_DEL15 == 1, which aids in training.
+
+        ###### TO DO: Do downsampling outside of function first, then never have to run this again
+        currentYearDF_downsampling_0 = currentYearDF.filter(col("DEP_DEL15") == 0)
+        print(f"@- currentYearDF_downsampling_0.count() = {currentYearDF_downsampling_0.count()}")
+        currentYearDF_downsampling_1 = currentYearDF.filter(col("DEP_DEL15") == 1)
+        print(f"@- currentYearDF_downsampling_1.count() = {currentYearDF_downsampling_1.count()}")
+
+        downsampling_ratio = (currentYearDF_downsampling_1.count() / currentYearDF_downsampling_0.count())
+
+        currentYearDF_downsampling_append = currentYearDF_downsampling_0.sample(fraction = downsampling_ratio, withReplacement = False, seed = 261)
+
+        currentYearDF_downsampled = currentYearDF_downsampling_1.unionAll(currentYearDF_downsampling_append)
+        print(f"@- currentYearDF_downsampled.count() = {currentYearDF_downsampled.count()}")
+        
+        if downsampledDF == None:
+            downsampledDF = currentYearDF_downsampled
+        else:
+            downsampledDF = downsampledDF.union(currentYearDF_downsampled)
+            print(f"@- downsampledDF.count() = {downsampledDF.count()}")
+    
+    print(f"downsampleYearly() Completed!")
+    print(f"@ {getCurrentDateTimeFormatted()}")
+    
+    return downsampledDF, listOfYears
 
 # COMMAND ----------
 
@@ -250,20 +274,23 @@ def getDownsampledDataFrame(inputDF):
 
 # COMMAND ----------
 
-def runBlockingTimeSeriesCrossValidation_LR(dataFrameInput, regParam_input = 0.0, elasticNetParam_input = 0, maxIter_input = 10, thresholds_list = [0.5, 0.7]):
+def runBlockingTimeSeriesCrossValidation(dataFrameInput, listOfYears = [2015, 2016, 2017, 2018, 2019, 2020], regParam_input = 0.0, elasticNetParam_input = 0, maxIter_input = 10, thresholds_list = [0.5, 0.7]):
     """
     Conducts the Blocking Time Series Cross Validation.
     Accepts the full dataFrame of all years. 
-    Is hard coded to use pre-2021 data as training data, which it will cross-validate against.
+    Is hard coded to use pre-2021 data as training data, which it will cross validate against.
     After all cross validations, will select best model from each year, and then apply the test 2021 data against it for final evaluation.
     Prints metrics from final test evaluation at the end.
     """
     print(f"\n@ Starting runBlockingTimeSeriesCrossValidation")
     print(f"@ {regParam_input}, {elasticNetParam_input}, {maxIter_input}, {thresholds_list}")
     print(f"@ {getCurrentDateTimeFormatted()}")
-
+    topMetrics = None
+    topYear = None
+    topModel = None
+    
     # list all of the years that the data will be trained against.
-    listOfYears = dataFrameInput.select("YEAR").distinct().filter(col("YEAR") != 2021).rdd.flatMap(list).collect()
+#     listOfYears = dataFrameInput.select("YEAR").distinct().filter(col("YEAR") != 2021).rdd.flatMap(list).collect()
     print("listOfYears:", listOfYears)
 
     cv_stats = pd.DataFrame()
@@ -273,38 +300,66 @@ def runBlockingTimeSeriesCrossValidation_LR(dataFrameInput, regParam_input = 0.0
 
         print(f"Processing Year: {currentYear}")
         print(f"@ {getCurrentDateTimeFormatted()}")
-        currentYearDF = dataFrameInput.filter(col("YEAR") == currentYear).cache()
+        currentYearDF_downsampled = dataFrameInput.filter(col("YEAR") == currentYear).cache()
 
-        # Downscale the data such that there are roughly equal amounts of rows where DEP_DEL15 == 0 and DEP_DEL15 == 1, which aids in training.
-        currentYearDF_downsampled = getDownsampledDataFrame(currentYearDF).cache()
+        # Upscale the data such that there are roughly equal amounts of rows where DEP_DEL15 == 0 and DEP_DEL15 == 1, which aids in training.
+
+#         ###### TO DO: Do downsampling outside of function first, then never have to run this again
+#         currentYearDF_downsampling_0 = currentYearDF.filter(col("DEP_DEL15") == 0)
+#         print(f"@- currentYearDF_downsampling_0.count() = {currentYearDF_downsampling_0.count()}")
+#         currentYearDF_downsampling_1 = currentYearDF.filter(col("DEP_DEL15") == 1)
+#         print(f"@- currentYearDF_downsampling_1.count() = {currentYearDF_downsampling_1.count()}")
+
+#         downsampling_ratio = (currentYearDF_downsampling_1.count() / currentYearDF_downsampling_0.count())
+
+#         currentYearDF_downsampling_append = currentYearDF_downsampling_0.sample(fraction = downsampling_ratio, withReplacement = False, seed = 261)
+
+#         currentYearDF_downsampled = currentYearDF_downsampling_1.unionAll(currentYearDF_downsampling_append)
+#         print(f"@- currentYearDF_downsampled.count() = {currentYearDF_downsampled.count()}")
 
         # Adds a percentage column to each year's data frame, with the percentage corresponding to percentage of the year's time. 
         # 0% = earliest time that year. 100% = latest time that year.
+        ######## TO DO: THIS MIGHT BE FASTER AS JUST AN ORDERBY + COUNT + HEAD/TAIL - worth testing
         preppedDF = currentYearDF_downsampled.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
 
-        # remove unneeded columns. All feature values are captured in "features" vector. All the other retained features are for row tracking.
+        # remove unneeded columns. All feature values are captured in "features". All the other retained features are for row tracking.
         selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
         dataset = preppedDF.select(selectedcols).cache()
 
-        # The training set is the data from the 70% earliest data, i.e. the earliest 70% of the year's data.
-        # Test set is the latter 30% of the data, i.e. the last 30% of the year's data.
+        print(f"@ Data Prepped: {currentYear}")
+        print(f"@ {getCurrentDateTimeFormatted()}")
+    #        display(dataset)
+
+        # The training set is the data from the 70% earliest data.
+        # Test set is the latter 30% of the data.
         trainingData = dataset.filter(col("DEP_DATETIME_LAG_percent") <= .70)
         trainingTestData = dataset.filter(col("DEP_DATETIME_LAG_percent") > .70)
+    #        display(trainingTestData)
 
+        print(f"@ Data Split: {currentYear}")
+        print(f"@ {getCurrentDateTimeFormatted()}")
         # Create and train a logistic regression model for the year based on training data.
+        # Note: createLinearRegressionModel() function would not work here for some reason.
         lr = LogisticRegression(labelCol="DEP_DEL15", featuresCol="features", regParam = regParam_input, elasticNetParam = elasticNetParam_input, 
                                 maxIter = maxIter_input, threshold = 0.5, standardization = True)
         lrModel = lr.fit(trainingData)
-
-        currentYearPredictions = runModelPredictions(lrModel, trainingTestData
+        print(f"@ Model Trained: {currentYear}")
+        print(f"@ {getCurrentDateTimeFormatted()}")
+        
+        currentYearPredictions = runLogisticRegression(lrModel, trainingTestData
                                                       ).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
 
-        # After creating predictions percentages for each row in the trainingTestData from the model, evaluate predictions at different threshold values.
+        print(f"@ Training Data Modelled: {currentYear}")
+        print(f"@ {getCurrentDateTimeFormatted()}")
         for threshold in thresholds_list:
+
             thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
                                                          .withColumn("prediction", (col('predicted_probability') > threshold).cast('double') )
 
             currentYearMetrics = testModelPerformance(thresholdPredictions)
+            print(f"@ Training Validated at threshold {threshold}: {currentYear}")
+            print(f"@ {getCurrentDateTimeFormatted()}")
+        
             stats = pd.DataFrame([currentYearMetrics], columns=['val_Precision','val_Recall','val_F0.5','val_F1','val_Accuracy'])
             stats['year'] = year
             stats['regParam'] = regParam_input
@@ -313,25 +368,17 @@ def runBlockingTimeSeriesCrossValidation_LR(dataFrameInput, regParam_input = 0.0
             stats['threshold'] = threshold
             stats['trained_model'] = lrModel
 
-            # Stores each of the validation metrics and fitted model for every CV in a Pandas DF, which is returned at the end.
             cv_stats = pd.concat([cv_stats,stats],axis=0)
             
     return cv_stats
 
 
-def predictTestData_LR(cv_stats, dataFrameInput):
-    """
-    Evaluates trained models against the test data set, then returns a dataframe with all of the evaluation metrics.
-    Takes in a pandas dataframe with CV evaluation metrics and the fitted models along with the data frame with the
-    test data to be evaluated against from runBlockingTimeSeriesCrossValidation().
-    """
+def predictTestData(cv_stats, dataFrameInput):
+    
     print(f"@ Starting Test Evaluation")
     print(f"@ {getCurrentDateTimeFormatted()}")
-    
     # Prepare 2021 Test Data
     currentYearDF = dataFrameInput.filter(col("YEAR") == 2021).cache()
-    
-    # NOTE: Might not need DEP_DATETIME_LAG_percent feature here. Remove?
     preppedDF = currentYearDF.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
     selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
     dataset = preppedDF.select(selectedcols).cache()
@@ -339,7 +386,7 @@ def predictTestData_LR(cv_stats, dataFrameInput):
     best_model = cv_stats.sort_values("val_F0.5", ascending=False).iloc[0]
     best_model_stats = cv_stats.sort_values("val_F0.5", ascending=False).iloc[[0]]
     
-    currentYearPredictions = runModelPredictions(best_model['trained_model'], dataset
+    currentYearPredictions = runLogisticRegression(best_model['trained_model'], dataset
                                                   ).withColumn("predicted_probability", extract_prob_udf(col("probability")))
     thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
                                                          .withColumn("prediction", (col('predicted_probability') > best_model['threshold']).cast('double') )
@@ -386,10 +433,17 @@ def saveMetricsToAzure_LR(input_model, input_metrics):
 # Hyperparameter Tuning Parameter Grid for Logistic Regression
 # Each CV takes about 10 minutes.
 
-regParamGrid = [0.0]
+# regParamGrid = [0.0, 0.01, 0.5, 2.0]
+# elasticNetParamGrid = [0.0, 0.5, 1.0]
+# maxIterGrid = [5, 10, 50]
+# thresholds = [0.5, 0.6, 0.7, 0.8]
+
+regParamGrid = [0.01]
 elasticNetParamGrid = [0.0]
-maxIterGrid = [10
-thresholds = [0.5, 0.6, 0.7, 0.8]
+maxIterGrid = [10]
+thresholds = [0.6]
+
+#downsampledDF, listOfYears = downsampleYearly(preppedDataDF)
 
 grid_search = pd.DataFrame()
 
@@ -400,17 +454,23 @@ for maxIter in maxIterGrid:
         for regParam in regParamGrid:
             print(f"! regParam = {regParam}")
             try:
-                cv_stats = runBlockingTimeSeriesCrossValidation_LR(preppedDataDF, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
-                test_results = predictTestData_LR(cv_stats, preppedDataDF)
+                cv_stats = runBlockingTimeSeriesCrossValidation(downsampledDF, listOfYears, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
+                test_results = predictTestData(cv_stats, preppedDataDF)
+                print(cv_stats)
+                print(test_results)
 
                 grid_search = pd.concat([grid_search,test_results],axis=0)
             except:
                 pass
-            
+                        
 print("! Job Finished!")
 print(f"! {getCurrentDateTimeFormatted()}\n")
 
 grid_search
+
+# COMMAND ----------
+
+print(grid_search)
 
 # COMMAND ----------
 
@@ -439,7 +499,7 @@ def runBlockingTimeSeriesCrossValidation_RF(dataFrameInput, input_numTrees = 10,
     Prints metrics from final test evaluation at the end.
     """
     print(f"\n@ Starting runBlockingTimeSeriesCrossValidation")
-    print(f"@ {regParam_input}, {elasticNetParam_input}, {maxIter_input}, {thresholds_list}")
+    print(f"@ {input_numTrees}, {input_maxDepth}, {input_maxBins}, {thresholds_list}")
     print(f"@ {getCurrentDateTimeFormatted()}")
 
     # list all of the years that the data will be trained against.
@@ -460,6 +520,7 @@ def runBlockingTimeSeriesCrossValidation_RF(dataFrameInput, input_numTrees = 10,
 
         # Adds a percentage column to each year's data frame, with the percentage corresponding to percentage of the year's time. 
         # 0% = earliest time that year. 100% = latest time that year.
+        print(f"@ Appending percentages for year {currentYear}")
         preppedDF = currentYearDF_downsampled.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
 
         # remove unneeded columns. All feature values are captured in "features" vector. All the other retained features are for row tracking.
@@ -472,10 +533,13 @@ def runBlockingTimeSeriesCrossValidation_RF(dataFrameInput, input_numTrees = 10,
         trainingTestData = dataset.filter(col("DEP_DATETIME_LAG_percent") > .70)
 
         # Create and train a logistic regression model for the year based on training data.
-        
-        rf = RandomForestClassifier(labelCol="DEP_DEL15", featuresCol="features", numTrees = input_numTrees, maxDepth = input_maxDepth, maxBins = input_maxBins, threshold = 0.5, standardization = True)
+        print(f"@ Create Random Forest Classifier for year {currentYear}")
+        rf = RandomForest.trainClassifier(labelCol="DEP_DEL15", featuresCol="features", numTrees = input_numTrees, maxDepth = input_maxDepth, maxBins = input_maxBins, threshold = 0.5)
+#                rf = RandomForestClassifier(labelCol="DEP_DEL15", featuresCol="features", numTrees = input_numTrees, maxDepth = input_maxDepth, maxBins = input_maxBins, threshold = 0.5)
+        print(f"@ Training RF model for year {currentYear}")
         rfModel = rf.fit(trainingData)
 
+        print(f"@ Creating predictions for RF model for year {currentYear}")
         currentYearPredictions = runModelPredictions(rfModel, trainingTestData
                                                       ).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
 
@@ -487,11 +551,11 @@ def runBlockingTimeSeriesCrossValidation_RF(dataFrameInput, input_numTrees = 10,
             currentYearMetrics = testModelPerformance(thresholdPredictions)
             stats = pd.DataFrame([currentYearMetrics], columns=['val_Precision','val_Recall','val_F0.5','val_F1','val_Accuracy'])
             stats['year'] = year
-            stats['regParam'] = regParam_input
-            stats['elasticNetParam'] = elasticNetParam_input
-            stats['maxIter'] = maxIter_input
+            stats['numTrees'] = input_numTrees
+            stats['maxDepth'] = input_maxDepth
+            stats['maxBins'] = input_maxBins
             stats['threshold'] = threshold
-            stats['trained_model'] = lrModel
+            stats['trained_model'] = rfModel
 
             # Stores each of the validation metrics and fitted model for every CV in a Pandas DF, which is returned at the end.
             cv_stats = pd.concat([cv_stats,stats],axis=0)
@@ -574,7 +638,7 @@ def saveMetricsToAzure_RF(input_model, input_metrics):
 numTreesGrid = [10]
 maxDepthGrid = [4]
 maxBinsGrid = [32]
-thresholds = [0.5, 0.6, 0.7, 0.8]
+thresholds = [0.5]
 
 grid_search = pd.DataFrame()
 
@@ -585,7 +649,7 @@ for numTrees in numTreesGrid:
         for maxBins in maxBinsGrid:
             print(f"! maxBins = {maxBins}")
             try:
-                cv_stats = runBlockingTimeSeriesCrossValidation_rf(preppedDataDF, numTrees, maxDepth, maxBins, thresholds_list = thresholds)
+                cv_stats = runBlockingTimeSeriesCrossValidation_RF(preppedDataDF, numTrees, maxDepth, maxBins, thresholds_list = thresholds)
                 test_results = predictTestData_RF(cv_stats, preppedDataDF)
 
                 grid_search = pd.concat([grid_search,test_results],axis=0)
@@ -615,17 +679,138 @@ display(current_metrics)
 
 # COMMAND ----------
 
-def runSupportVectorMachine(svmModel, testData):
+def runBlockingTimeSeriesCrossValidation_SVM(dataFrameInput, regParam_input = 0.0, maxIter_input = 10, thresholds_list = [0.5, 0.7]):
     """
-    Applies a Support Vector Machine model to the test data provided, and return the metrics from the test evaluation.
+    Conducts the Blocking Time Series Cross Validation.
+    Accepts the full dataFrame of all years. 
+    Is hard coded to use pre-2021 data as training data, which it will cross-validate against.
+    After all cross validations, will select best model from each year, and then apply the test 2021 data against it for final evaluation.
+    Prints metrics from final test evaluation at the end.
     """
-    predictions = svmModel.transform(testData)
-#    selected = predictions.select("DEP_DEL15", "prediction", "probability")
-#    display(selected)
-    metrics = MulticlassMetrics(predictions.select("DEP_DEL15", "prediction").rdd)
+    print(f"\n@ Starting runBlockingTimeSeriesCrossValidation")
+    print(f"@ {regParam_input}, {maxIter_input}, {thresholds_list}")
+    print(f"@ {getCurrentDateTimeFormatted()}")
+
+    # list all of the years that the data will be trained against.
+    listOfYears = dataFrameInput.select("YEAR").distinct().filter(col("YEAR") != 2021).rdd.flatMap(list).collect()
+    print("listOfYears:", listOfYears)
+
+    cv_stats = pd.DataFrame()
+
+    # Iterate through each of the individual years in the training data set.
+    for currentYear in listOfYears:
+
+        print(f"Processing Year: {currentYear}")
+        print(f"@ {getCurrentDateTimeFormatted()}")
+        currentYearDF = dataFrameInput.filter(col("YEAR") == currentYear).cache()
+
+        # Downscale the data such that there are roughly equal amounts of rows where DEP_DEL15 == 0 and DEP_DEL15 == 1, which aids in training.
+        currentYearDF_downsampled = getDownsampledDataFrame(currentYearDF).cache()
+
+        # Adds a percentage column to each year's data frame, with the percentage corresponding to percentage of the year's time. 
+        # 0% = earliest time that year. 100% = latest time that year.
+        preppedDF = currentYearDF_downsampled.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
+
+        # remove unneeded columns. All feature values are captured in "features" vector. All the other retained features are for row tracking.
+        selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
+        dataset = preppedDF.select(selectedcols).cache()
+
+        # The training set is the data from the 70% earliest data, i.e. the earliest 70% of the year's data.
+        # Test set is the latter 30% of the data, i.e. the last 30% of the year's data.
+        trainingData = dataset.filter(col("DEP_DATETIME_LAG_percent") <= .70)
+        trainingTestData = dataset.filter(col("DEP_DATETIME_LAG_percent") > .70)
+
+        # Create and train a logistic regression model for the year based on training data.
+        lr = LogisticRegression(labelCol="DEP_DEL15", featuresCol="features", regParam = regParam_input, elasticNetParam = elasticNetParam_input, 
+                                maxIter = maxIter_input, threshold = 0.5, standardization = True)
+        lrModel = lr.fit(trainingData)
+
+        currentYearPredictions = runModelPredictions(lrModel, trainingTestData
+                                                      ).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
+
+        # After creating predictions percentages for each row in the trainingTestData from the model, evaluate predictions at different threshold values.
+        for threshold in thresholds_list:
+            thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
+                                                         .withColumn("prediction", (col('predicted_probability') > threshold).cast('double') )
+
+            currentYearMetrics = testModelPerformance(thresholdPredictions)
+            stats = pd.DataFrame([currentYearMetrics], columns=['val_Precision','val_Recall','val_F0.5','val_F1','val_Accuracy'])
+            stats['year'] = year
+            stats['regParam'] = regParam_input
+            stats['maxIter'] = maxIter_input
+            stats['threshold'] = threshold
+            stats['trained_model'] = lrModel
+
+            # Stores each of the validation metrics and fitted model for every CV in a Pandas DF, which is returned at the end.
+            cv_stats = pd.concat([cv_stats,stats],axis=0)
+            
+    return cv_stats
+
+
+def predictTestData_SVM(cv_stats, dataFrameInput):
+    """
+    Evaluates trained models against the test data set, then returns a dataframe with all of the evaluation metrics.
+    Takes in a pandas dataframe with CV evaluation metrics and the fitted models along with the data frame with the
+    test data to be evaluated against from runBlockingTimeSeriesCrossValidation().
+    """
+    print(f"@ Starting Test Evaluation")
+    print(f"@ {getCurrentDateTimeFormatted()}")
     
-    return metrics
+    # Prepare 2021 Test Data
+    currentYearDF = dataFrameInput.filter(col("YEAR") == 2021).cache()
     
+    # NOTE: Might not need DEP_DATETIME_LAG_percent feature here. Remove?
+    preppedDF = currentYearDF.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
+    selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
+    dataset = preppedDF.select(selectedcols).cache()
+    
+    best_model = cv_stats.sort_values("val_F0.5", ascending=False).iloc[0]
+    best_model_stats = cv_stats.sort_values("val_F0.5", ascending=False).iloc[[0]]
+    
+    currentYearPredictions = runModelPredictions(best_model['trained_model'], dataset
+                                                  ).withColumn("predicted_probability", extract_prob_udf(col("probability")))
+    thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
+                                                         .withColumn("prediction", (col('predicted_probability') > best_model['threshold']).cast('double') )
+    
+    currentYearMetrics = testModelPerformance(thresholdPredictions)
+    stats = pd.DataFrame([currentYearMetrics], columns=['test_Precision','test_Recall','test_F0.5','test_F1','test_Accuracy'])
+    stats = pd.concat([stats, best_model_stats], axis=1)
+    
+    return stats
+    
+# TODO: REWRITE TO FIT WITH NEW COLUMNS
+def resetMetricsToAzure_SVM():
+    backup_metrics = spark.read.parquet(f"{blob_url}/logistic_regression_metrics")
+    backup_date_string = getCurrentDateTimeFormatted()
+    backup_metrics.write.parquet(f"{blob_url}/metrics_backups/logistic_regression_metrics-{backup_date_string}")
+    
+    columns = ["date_time","precision", "f0.5", "recall", "accuracy", "regParam", "elasticNetParam", "maxIter", "threshold"]
+    data = [(datetime.utcnow(), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0)]
+    rdd = spark.sparkContext.parallelize(data)
+    dfFromRDD = rdd.toDF(columns)
+    
+    dfFromRDD.write.mode('overwrite').parquet(f"{blob_url}/logistic_regression_metrics")
+    print("LR Metrics Reset")
+
+# TODO: REWRITE TO FIT WITH NEW COLUMNS
+def saveMetricsToAzure_SVM(input_model, input_metrics):
+    columns = ["date_time","precision", "f0.5", "recall", "accuracy", "regParam", "elasticNetParam", "maxIter", "threshold"]
+    data = [(datetime.utcnow(), input_metrics.precision(1), input_metrics.fMeasure(label = 1.0, beta = 0.5), \
+             input_metrics.recall(1), input_metrics.accuracy, input_model.getRegParam(), \
+             input_model.getElasticNetParam(), input_model.getMaxIter(), input_model.getThreshold())]
+    rdd = spark.sparkContext.parallelize(data)
+    dfFromRDD = rdd.toDF(columns)
+    
+    dfFromRDD.write.mode('append').parquet(f"{blob_url}/logistic_regression_metrics")
+    print("LR Metrics Saved Successfully!")
+    
+# WARNING: Will Delete Current Metrics for Logistic Regression
+#resetMetricsToAzure_SVM()
+# WARNING: Will Delete Current Metrics for Logistic Regression
+    
+
+# COMMAND ----------
+
 def runBlockingTimeSeriesCrossValidation_SVM(dataFrameInput, regParam_input, maxIter_input, threshold_input):
     """
     Conducts the Blocking Time Series Cross Validation.

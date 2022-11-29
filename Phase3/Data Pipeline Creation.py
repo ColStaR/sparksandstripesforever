@@ -138,7 +138,7 @@ df_joined_data_all_with_efeatures.printSchema()
 
 # Convert categorical features to One Hot Encoding
 
-categoricalColumns = ['ORIGIN', 'QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'FL_DATE', 'OP_UNIQUE_CARRIER', 'TAIL_NUM', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_STATE_ABR',  'DEST_AIRPORT_SEQ_ID', 'DEST_STATE_ABR', 'CRS_DEP_TIME', 'YEAR', 'AssumedEffect', 'is_prev_delayed', 'is_prev_diverted']
+categoricalColumns = ['ORIGIN', 'QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'FL_DATE', 'OP_UNIQUE_CARRIER', 'TAIL_NUM', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_STATE_ABR',  'DEST_AIRPORT_SEQ_ID', 'DEST_STATE_ABR', 'CRS_DEP_TIME', 'YEAR', 'AssumedEffect', 'is_prev_delayed',]
 # Features Not Included: DEP_DATETIME_LAG, 'CRS_ELAPSED_TIME', 'DISTANCE','DEP_DATETIME','DATE','ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyPressureChange', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'HourlyWindGustSpeed', 'MonthlyMeanTemperature', 'MonthlyMaximumTemperature', 'MonthlyGreatestSnowDepth', 'MonthlyGreatestSnowfall', 'MonthlyTotalSnowfall', 'MonthlyTotalLiquidPrecipitation', 'MonthlyMinimumTemperature', 'DATE_HOUR', 'distance_to_neighbor', 'neighbor_lat', 'neighbor_lon', 'time_zone_id', 'UTC_DEP_DATETIME_LAG', 'UTC_DEP_DATETIME', DEP_DEL15, 'ORIGIN_AIRPORT_ID', 'DEST_AIRPORT_ID','ORIGIN_WAC', 'DEST_WAC', 'CANCELLED', 'CANCELLATION_CODE', 'SOURCE'
 
 # Is including this data leakage? 'DEP_TIME', 'DEP_HOUR', 
@@ -714,6 +714,13 @@ display(current_metrics)
 
 # COMMAND ----------
 
+def reportMetrics(inputMetrics):
+    """Outputs metrics (currently only for Linear Regression?)"""
+    print("Precision = %s" % inputMetrics.precision(1))
+    print("F0.5 = %s" % inputMetrics.fMeasure(label = 1.0, beta = 0.5))
+    print("Recall = %s" % inputMetrics.recall(1))
+    print("Accuracy = %s" % inputMetrics.accuracy)
+
 def runSupportVectorMachine(svmModel, testData):
     """
     Applies a Support Vector Machine model to the test data provided, and return the metrics from the test evaluation.
@@ -870,9 +877,9 @@ def saveMetricsToAzure_SVM(input_model, input_metrics):
 #regParamGrid = [0.0, 0.01, 0.5, 2.0]
 #maxIterGrid = [1, 5, 10]
 
-regParamGrid = [0.0]
-maxIterGrid = [10]
-thresholdGrid = [0.5]
+regParamGrid = [0.0, 0.01, 0.5, 2.0]
+maxIterGrid = [1, 5, 10]
+thresholdGrid = [0.5, 0.6]
 
 for regParam in regParamGrid:
     print(f"! regParam = {regParam}")
