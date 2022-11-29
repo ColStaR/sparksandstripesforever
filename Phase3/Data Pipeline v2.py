@@ -8,7 +8,7 @@
 
 from pyspark.sql.functions import col, floor
 from pyspark.sql.functions import isnan, when, count, col
-from pyspark.sql.types import IntegerType
+from pyspark.sql.types import IntegerType, DoubleType
 
 from pyspark.ml.classification import LogisticRegression
 from pyspark.ml import Pipeline
@@ -181,7 +181,7 @@ def extract_prob(v):
         return float(v[1])  # Your VectorUDT is of length 2
     except ValueError:
         return None
-#extract_prob_udf = F.udf(extract_prob, DoubleType())
+extract_prob_udf = F.udf(extract_prob, DoubleType())
 
 def testModelPerformance(predictions):
     """
@@ -346,7 +346,7 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, listOfYears = [2015, 20
         print(f"@ Model Trained: {currentYear}")
         print(f"@ {getCurrentDateTimeFormatted()}")
         
-        currentYearPredictions = runLogisticRegression(lrModel, trainingTestData
+        currentYearPredictions = runModel(lrModel, trainingTestData
                                                       ).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
 
         print(f"@ Training Data Modelled: {currentYear}")
@@ -467,6 +467,10 @@ print("! Job Finished!")
 print(f"! {getCurrentDateTimeFormatted()}\n")
 
 grid_search
+
+# COMMAND ----------
+
+runBlockingTimeSeriesCrossValidation(downsampledDF, listOfYears, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
 
 # COMMAND ----------
 
