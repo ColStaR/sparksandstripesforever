@@ -220,6 +220,14 @@ def testModelPerformance(predictions):
     
     return precision, recall, F05, F1, accuracy
   
+
+# COMMAND ----------
+
+# Downsample data as part of the pipeline.
+# While working, downsampleYearly() saves us time from constantly having to re-downsample everything by saving an easily-retrievable, already-downsampled dataset.
+# Creating new downsample DF takes 38 minutes.
+# Loading downsampled DF from Parque takes 30 seconds
+
 def downsampleYearly(dataFrameInput):
     """
     Rebalances dataframe based on DEP_DEL15 feature for all years by returning a downsampled dataframe
@@ -265,6 +273,27 @@ def downsampleYearly(dataFrameInput):
     print(f"@ {getCurrentDateTimeFormatted()}")
     
     return downsampledDF, listOfYears
+
+def saveDownsampledData(inputDF):
+    columns = inputDF.columns
+    inputDF.write.mode('overwrite').parquet(f"{blob_url}/SavedDataFrames/DownsampledData")
+    print("saveDownsampledData Saved!")
+
+def loadDownsampledData():
+    outputDF = spark.read.parquet(f"{blob_url}/SavedDataFrames/DownsampledData")
+    listOfYears = outputDF.select("YEAR").distinct().filter(col("YEAR") != 2021).rdd.flatMap(list).collect()
+    return outputDF, listOfYears
+
+# Run this if you want to make a new version of the downsampled data.
+#downsampledDF, listOfYears = downsampleYearly(preppedDataDF)
+#saveDownsampledData(downsampledDF)
+#print(f"listOfYears: {listOfYears}")
+#display(downsampledDF)
+
+# Run this if you want to load an existing saved copy of downsampled data.
+downsampledDF, listOfYears = loadDownsampledData()
+print(f"listOfYears: {listOfYears}")
+display(downsampledDF)
 
 # COMMAND ----------
 
@@ -361,7 +390,7 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, listOfYears = [2015, 20
             print(f"@ {getCurrentDateTimeFormatted()}")
         
             stats = pd.DataFrame([currentYearMetrics], columns=['val_Precision','val_Recall','val_F0.5','val_F1','val_Accuracy'])
-            stats['year'] = year
+            stats['year'] = currentYear
             stats['regParam'] = regParam_input
             stats['elasticNetParam'] = elasticNetParam_input
             stats['maxIter'] = maxIter_input
@@ -431,7 +460,7 @@ def saveMetricsToAzure_LR(input_model, input_metrics):
 # COMMAND ----------
 
 # Hyperparameter Tuning Parameter Grid for Logistic Regression
-# Each CV takes about 10 minutes.
+# Each CV takes about 41 minutes.
 
 # regParamGrid = [0.0, 0.01, 0.5, 2.0]
 # elasticNetParamGrid = [0.0, 0.5, 1.0]
@@ -456,8 +485,6 @@ for maxIter in maxIterGrid:
             try:
                 cv_stats = runBlockingTimeSeriesCrossValidation(downsampledDF, listOfYears, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
                 test_results = predictTestData(cv_stats, preppedDataDF)
-                print(cv_stats)
-                print(test_results)
 
                 grid_search = pd.concat([grid_search,test_results],axis=0)
             except:
@@ -470,7 +497,7 @@ grid_search
 
 # COMMAND ----------
 
-runBlockingTimeSeriesCrossValidation(downsampledDF, listOfYears, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
+#runBlockingTimeSeriesCrossValidation(downsampledDF, listOfYears, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
 
 # COMMAND ----------
 
