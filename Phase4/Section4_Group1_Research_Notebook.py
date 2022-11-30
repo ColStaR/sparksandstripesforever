@@ -16,8 +16,10 @@
 
 # MAGIC %md
 # MAGIC 
-# MAGIC # Team 13 Phase 4 Notebook
-# MAGIC ## Sparks and Stripes Forever
+# MAGIC # "Allay Airway Delays!" - Creating a Machine Learning Model to Predict Flight Delays
+# MAGIC # Team 13 Research Notebook
+# MAGIC ### Section 4, Group 1
+# MAGIC ### "Sparks and Stripes Forever"
 # MAGIC 
 # MAGIC #### Members:
 # MAGIC - Nashat Cabral
@@ -29,60 +31,14 @@
 
 # MAGIC %md
 # MAGIC 
-# MAGIC ## Phase Leader Plan
+# MAGIC # Table of Contents
 # MAGIC 
-# MAGIC Per the instructions, each weekly phase will be led by a different member of the team. Below is a table showing the planned leader for each of the upcoming phases.
-# MAGIC 
-# MAGIC [Link to Official Spreadsheet (Requires UC Berkeley Account)](https://docs.google.com/spreadsheets/d/1Va1bwlEmrIrOc1eFo1ySYlPQpt4kZjDqahQABgw0la4/edit#gid=0)
-# MAGIC 
-# MAGIC | Phase Number | Phase Leader    |
-# MAGIC | ------------ | --------------- |
-# MAGIC | Phase 1      | Ryan S. Wong    |
-# MAGIC | Phase 2      | Nashat Cabral   |
-# MAGIC | Phase 3      | Deanna Emery    |
-# MAGIC | Phase 4      | Nina Huang      |
-# MAGIC | Phase 5      | Team Submission |
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC 
-# MAGIC ## Credit Assignment Plan
-# MAGIC 
-# MAGIC [Link to Official Spreadsheet (Requires UC Berkeley Account)](https://docs.google.com/spreadsheets/d/1A4N3sV1ngaBsPdUqcJ8R4gY6e2g3gHeIUDyDes7f4SU/edit#gid=549854846)
-# MAGIC 
-# MAGIC ### Phase 3 Contributions
-# MAGIC 
-# MAGIC | Task                   | Start Date | End Date | Estimated Time (hours) | Nashat Cabral | Deanna Emery | Nina Huang | Ryan S. Wong |
-# MAGIC |------------------------|------------|----------|------------------------|---------------|--------------|------------|--------------|
-# MAGIC | Data Pipeline Creation | 11/14/22   | 11/25/22 | 8                      |               | X            |            | X            |
-# MAGIC | Model Building         | 11/18/22   | 11/27/22 | 12                     |               | X            |            | X            |
-# MAGIC | Feature Engineering    | 11/14/22   | 11/25/22 | 10                     | X             | X            | X          |              |
-# MAGIC | Notebook Writeup       | 11/19/22   | 11/27/22 | 3                      | X             | X            | X          | X            |
-# MAGIC | Presentation Setup     | 11/14/22   | 11/16/22 | 4                      | X             | X            | X          | X            |
-# MAGIC | Submission             | 11/27/22   | 11/27/22 | 1                      |               | X            |            |              |
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC 
-# MAGIC ## Links to Project Notebooks
-# MAGIC 
-# MAGIC [Link to Phase 1 Notebook](https://adb-731998097721284.4.azuredatabricks.net/?o=731998097721284#notebook/364123876153624/command/4295587629775265)
-# MAGIC 
-# MAGIC [Link to Phase 1 Notebook in GitHub](https://github.com/ColStaR/sparksandstripesforever/blob/main/Phase1/Section4_Group1_Phase1_ProjectProposal_Notebook.ipynb)
-# MAGIC 
-# MAGIC [Link to Phase 2 Notebook](https://adb-731998097721284.4.azuredatabricks.net/?o=731998097721284#notebook/1020093804836156/command/1020093804836157)
-# MAGIC 
-# MAGIC [Link to Phase 2 Notebook in GitHub](https://github.com/ColStaR/sparksandstripesforever/blob/main/Phase2/Section4_Group1_Phase2_Notebook_Final.py)
-# MAGIC 
-# MAGIC [Link to Phase 3 Notebook](https://adb-731998097721284.4.azuredatabricks.net/?o=731998097721284#notebook/2647101326237439/command/2647101326237443)
-# MAGIC 
-# MAGIC [Link to Phase 3 Notebook in GitHub](https://github.com/ColStaR/sparksandstripesforever/blob/main/Phase3/Section4_Group1_Phase3_Notebook_Final.py)
-# MAGIC 
-# MAGIC [Link to Phase 4 Notebook]()
-# MAGIC 
-# MAGIC [Link to Phase 4 Notebook in GitHub]()
+# MAGIC - 1. Project Abstract
+# MAGIC - 2. Introduction
+# MAGIC - 3. Dataset of Interest
+# MAGIC   - 3.1 Original Data Sets
+# MAGIC   - 3.2 Joining Data Sets
+# MAGIC   - 3.3 Feature Engineering
 
 # COMMAND ----------
 
@@ -110,6 +66,26 @@
 # MAGIC %md
 # MAGIC 
 # MAGIC # 3. Dataset of Interest
+# MAGIC 
+# MAGIC For this project, we will be examining the data from two tables of considerable size, along with an additional smaller table:
+# MAGIC 
+# MAGIC - Flight Data: The first of the larger tables will consist of a collection of the “on-time” performance data for passenger flights from the U.S. Department of Transportation (DOT). These flights will be limited to domestic flights within the United States and its territories. 
+# MAGIC - Weather Data: The second of the larger tables is composed of weather data that can be used to determine the effect of weather conditions on flight performance for airports within the region. 
+# MAGIC - Airport Data: The final, smallest, table houses metadata on airports, such as their location and ID. 
+# MAGIC 
+# MAGIC The sections below will discuss the lineage of this project's data, starting with the origins of the original data sets, through to the process of joining the data sets together, and then discussing the features that were added.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## 3.1 Original Data Sets
+# MAGIC 
+# MAGIC WHAT IS THE ORIGIN OF THE ORIGINAL DATA SETS?
+# MAGIC 
+# MAGIC WHAT SORT OF INFO DID THE ORIGINAL DATA SETS CONTAIN?
+# MAGIC 
+# MAGIC SOME BASIC EDA. NUMBER OF FEATURES, NUMBER OF ROWS, ETC.
 
 # COMMAND ----------
 
@@ -182,12 +158,6 @@
 # MAGIC The below figure displays summary statistics for our numeric variables of Distance_to_neighbor
 # MAGIC 
 # MAGIC ![img5](https://raw.githubusercontent.com/ColStaR/sparksandstripesforever/main/Phase1/images/stationstats.PNG)
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC 
-# MAGIC # 4. EDA on Raw and Joined Data Sets
 
 # COMMAND ----------
 
@@ -338,6 +308,122 @@
 
 # MAGIC %md
 # MAGIC 
+# MAGIC ## 3.2 Joining the Data Sets
+# MAGIC 
+# MAGIC HOW DID WE JOIN THE DATA SETS? ON WHAT FEATURES?
+# MAGIC 
+# MAGIC WHAT WERE THE SPECIAL CONSIDERATIONS MADE WHEN JOINING E.G. LAG TIME AND TIME CONVERSIONS?
+# MAGIC 
+# MAGIC BASIC EDA ON JOINED DATA SETS. NUMBER OF ROWS, NUMBER OF FEATURES, ETC.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## Joining Datasets
+# MAGIC 
+# MAGIC Before we can begin feature engineering and machine learning, we first have to join weather and airlines datasets and address missing values. Since our goal is to predict the departure delay, we will have to drop any rows that are missing values in all three of DEP_DELAY, DEP_DELAY_NEW, and DEP_DEL15 (if any one of these columns is available, we will have sufficient information for our outcome variable). Similarly, if we have a small proportion of rows that are missing any important features, these can likely safely be dropped. Doing so can help improve runtime once we begin joining the datasets.
+# MAGIC 
+# MAGIC The steps below detail how the join of the airlines and weather datasets can be conducted:
+# MAGIC 1. First, collect distinct pairs of airport codes from the ORIGIN_AIRPORT_ID column, and ORIGIN_STATE_ABR.
+# MAGIC 2. Confirm that all airport codes and their corresponding states are in the weather stations dataset (this information can be found in the neighbor_call and neighbor_state columns). Perform an inner join on these two fields such that we have a table containing: ORIGIN_AIRPORT_ID (neighbor_call), ORIGIN_STATE_ABR (neighbor_state), station_id, distance_to_neighbor. Confirm that all airport codes and states were matched to at least one weather station, and that all matched weather stations exist in the weather data.
+# MAGIC 3. Create a new column called WEATHER_DATETIME by converting the DATE column in the weather data to a datetime type.
+# MAGIC 4. Perform an inner join of the airport - weather station linking table onto the weather dataset. The resulting dataset will only contain weather data for the stations of interest, and it may contain duplicate entries of weather if the same weather station corresponds to more than one airport. We may also find that one airport may correspond to more than one weather station.
+# MAGIC 5. Identify rows in the merged weather data with duplicated WEATHER_DATETIME and airport (ORIGIN_AIRPORT_ID). Address these duplicates by keeping the row with the smallest value in “distance_to_neighbor”. For any ties, just keep the first occurrence. This strategy allows us to keep more granular time in our weather data by making use of multiple stations.
+# MAGIC 6. Create a departure date-time column, called AIRLINES_DATETIME, in the airlines dataset by combining the FL_DATE, and departure time (CRS_DEP_TIME) into a datetime. Add a column called AIRLINES_DATETIME_SHIFTED to the airlines dataset that is equal to the departure datetime minus 2 hours. We will need to round the time down to the hour to help make merging onto the weather data easier, which can be accomplished by removing the last two digits from the departure time before converting to a datetime.
+# MAGIC 7. Finally, we can merge the airlines data and the weather data together as a one-sided (left) merge onto the airlines data using the columns: ORIGIN_AIRPORT_ID, AIRLINES_DATETIME_SHIFTED, and WEATHER_DATETIME. The resulting table should have exactly as many rows as the original airlines dataset.
+# MAGIC 
+# MAGIC With all three datasets merged, we would need to identify the number and proportion of flights that did not have any corresponding weather data. If this is a small enough set, we can drop rows that are missing weather data. If we find that we need to keep these rows, we can fill the missing values with averages for the given ORIGIN_AIRPORT_ID and MONTH. Any other important features with missing values can be handled similarly.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC # Joining the Data Sets
+# MAGIC 
+# MAGIC ![Join Schema](https://raw.githubusercontent.com/ColStaR/sparksandstripesforever/main/images/data_join_gantt.png)
+# MAGIC 
+# MAGIC Before we began feature engineering and machine learning, we first had to join weather and airlines datasets and address missing values. Since our goal was to predict the departure delay, we had to drop any rows that were missing values in all four of DEP_DELAY, DEP_DELAY_NEW, DEP_DEL15, and CANCELLED (if any one of these columns was available, we had sufficient information for our outcome variable). Note that in our case, we treated cancellations as delays.
+# MAGIC 
+# MAGIC The steps below detail how the join of the airlines and weather datasets was conducted:
+# MAGIC 1. First, we collected distinct pairs of airport codes from the ORIGIN column, and ORIGIN_STATE_ABR.
+# MAGIC 2. Having confirmed that all airport codes and their corresponding states were in the weather stations dataset using the neighbor_call and neighbor_state columns, we performed an inner join on these two fields such that we had a table containing: ORIGIN (neighbor_call), ORIGIN_STATE_ABR (neighbor_state), station_id, distance_to_neighbor. We then confirmed that all airport codes and states were matched to at least one weather station, and that all matched weather stations existed in the weather data.
+# MAGIC 3. Because each airport mapped to more than two hundred weather stations on average, for the sake of efficiency, we chose to narrow down to a set of two or three stations for each airport: we selected the airport weather stations (with a distance_to_neighbor equal to zero), the closest weather station from the airport with a distance greater than zero, and the furthest weather station from the airport.
+# MAGIC 4. We then performed an inner join of the airport/station linking table onto the weather dataset. The resulting dataset only contained weather data for the stations of interest, and some duplicate entries of weather where the same weather station corresponded to more than one airport. We also found that some airports corresponded to more than one weather station.
+# MAGIC 5. In the airplanes dataset we created a departure date-time column, called DEP_DATETIME, by combining the FL_DATE, and departure time (CRS_DEP_TIME) into a datetime. We added a column called DEP_DATETIME_LAG to the airlines dataset that was equal to the departure datetime minus 2 hours. We needed to round the time down to the hour to help make merging onto the weather data easier, which we accomplished by removing the last two digits from the departure time before converting to a datetime.
+# MAGIC 6. In the weather dataset, we created a new column called DEP_DATETIME (to align with the airport dataset) by converting the DATE column in the weather data to a datetime type. Then, we created an additional column called DEP_DATETIME_LAG, which rounded the DEP_DATETIME up to the next hour for the sake of the merge.
+# MAGIC 7. We then identified rows in the merged weather data with duplicated DEP_DATETIME and airport (ORIGIN). We aggregated these duplicated entries by averaging across the numeric features in the weather data. This strategy allowed us to keep more granular time in our weather data by making use of multiple stations.
+# MAGIC 8. Finally, we were able to join the airlines data and the weather/station data together as an inner merge using the columns ORIGIN and DEP_DATETIME_LAG. 
+# MAGIC 
+# MAGIC The resulting joined dataset had 40,933,735 rows for the years 2015-2021 and ran in 11 minutes on 4 cores.
+# MAGIC 
+# MAGIC ## Joined Dataset Schema
+# MAGIC - ORIGIN : string
+# MAGIC - DEP_DATETIME_LAG : timestamp
+# MAGIC - QUARTER : integer
+# MAGIC - MONTH : integer
+# MAGIC - DAY_OF_MONTH : integer
+# MAGIC - DAY_OF_WEEK : integer
+# MAGIC - FL_DATE : string
+# MAGIC - OP_UNIQUE_CARRIER : string
+# MAGIC - TAIL_NUM : string
+# MAGIC - OP_CARRIER_FL_NUM : integer
+# MAGIC - ORIGIN_AIRPORT_ID : integer
+# MAGIC - ORIGIN_AIRPORT_SEQ_ID : integer
+# MAGIC - ORIGIN_STATE_ABR : string
+# MAGIC - ORIGIN_WAC : integer
+# MAGIC - DEST : string
+# MAGIC - DEST_AIRPORT_ID : integer
+# MAGIC - DEST_AIRPORT_SEQ_ID : integer
+# MAGIC - DEST_STATE_ABR : string
+# MAGIC - DEST_WAC : integer
+# MAGIC - CRS_DEP_TIME : string
+# MAGIC - DEP_TIME : integer
+# MAGIC - DEP_DEL15 : double
+# MAGIC - DEP_DELAY : double
+# MAGIC - DIVERTED : double
+# MAGIC - DIV_AIRPORT_LANDINGS : integer
+# MAGIC - CANCELLED : double
+# MAGIC - CANCELLATION_CODE : string
+# MAGIC - CRS_ELAPSED_TIME : double
+# MAGIC - DISTANCE : double
+# MAGIC - YEAR : integer
+# MAGIC - DEP_HOUR : string
+# MAGIC - DEP_DAY : string
+# MAGIC - DEP_DATETIME : string
+# MAGIC - DATE : double
+# MAGIC - ELEVATION : double
+# MAGIC - SOURCE : double
+# MAGIC - HourlyAltimeterSetting : double
+# MAGIC - HourlyDewPointTemperature : double
+# MAGIC - HourlyWetBulbTemperature : double
+# MAGIC - HourlyDryBulbTemperature : double
+# MAGIC - HourlyPrecipitation : double
+# MAGIC - HourlyStationPressure : double
+# MAGIC - HourlySeaLevelPressure : double
+# MAGIC - HourlyRelativeHumidity : double
+# MAGIC - HourlyVisibility : double
+# MAGIC - HourlyWindSpeed : double
+# MAGIC - DATE_HOUR : double
+# MAGIC - distance_to_neighbor : double
+# MAGIC - neighbor_lat : double
+# MAGIC - neighbor_lon : double
+# MAGIC - time_zone_id : string
+# MAGIC - UTC_DEP_DATETIME_LAG : timestamp
+# MAGIC - UTC_DEP_DATETIME : timestamp
+# MAGIC - DEP_TIME_CLEANED : string
+# MAGIC - flight_id : string
+# MAGIC  
+# MAGIC  
+# MAGIC ### Links to data joining notebooks
+# MAGIC [Notebook in DataBricks](https://adb-731998097721284.4.azuredatabricks.net/?o=731998097721284#notebook/4423519682321930/command/1020093804821142)
+# MAGIC 
+# MAGIC [Notebook in GitHub](https://github.com/ColStaR/sparksandstripesforever/blob/main/Phase2/DLE_join_V1.py)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
 # MAGIC # EDA on Joined Data Set
 # MAGIC 
 # MAGIC - The Joined dataset contains close to 41 million rows
@@ -395,7 +481,15 @@
 
 # MAGIC %md
 # MAGIC 
-# MAGIC # 5. Feature Engineering
+# MAGIC ## 3.3 Feature Engineering
+# MAGIC 
+# MAGIC WHAT NEW FEATURES WERE ADDED?
+# MAGIC 
+# MAGIC HOW WERE THE FEATURES CREATED?
+# MAGIC 
+# MAGIC WHAT INSIGHTS DO THESE FEATURES PROVIDE OUR DATA SET?
+# MAGIC 
+# MAGIC ANY SPECIAL CONSIDERATIONS FOR THE NEW FEATURES?
 
 # COMMAND ----------
 
@@ -497,7 +591,35 @@
 
 # MAGIC %md
 # MAGIC 
-# MAGIC # 6. Data Pipeline and Data Considerations
+# MAGIC # 4. Data Pipeline and Data Considerations
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## 4.1 Data Pipeline Overview
+# MAGIC 
+# MAGIC WHAT ARE THE GENERAL STEPS OF THE PIPELINE?
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## 4.2 Tools Used in Data Pipeline
+# MAGIC 
+# MAGIC WHAT TOOLS ARE USED THROUGHOUT THE PIPELINE?
+# MAGIC 
+# MAGIC WHAT IS THE CLUSTER INFORMATION?
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## 4.3 Process for Data Cleaning
+# MAGIC 
+# MAGIC WHAT DATA CLEANING HAD TO BE DONE?
+# MAGIC 
+# MAGIC HOW WAS THE DATA CLEANED? HOW IS THAT JUSTIFIED?
 
 # COMMAND ----------
 
@@ -609,110 +731,6 @@
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC 
-# MAGIC ## Joining Datasets
-# MAGIC 
-# MAGIC Before we can begin feature engineering and machine learning, we first have to join weather and airlines datasets and address missing values. Since our goal is to predict the departure delay, we will have to drop any rows that are missing values in all three of DEP_DELAY, DEP_DELAY_NEW, and DEP_DEL15 (if any one of these columns is available, we will have sufficient information for our outcome variable). Similarly, if we have a small proportion of rows that are missing any important features, these can likely safely be dropped. Doing so can help improve runtime once we begin joining the datasets.
-# MAGIC 
-# MAGIC The steps below detail how the join of the airlines and weather datasets can be conducted:
-# MAGIC 1. First, collect distinct pairs of airport codes from the ORIGIN_AIRPORT_ID column, and ORIGIN_STATE_ABR.
-# MAGIC 2. Confirm that all airport codes and their corresponding states are in the weather stations dataset (this information can be found in the neighbor_call and neighbor_state columns). Perform an inner join on these two fields such that we have a table containing: ORIGIN_AIRPORT_ID (neighbor_call), ORIGIN_STATE_ABR (neighbor_state), station_id, distance_to_neighbor. Confirm that all airport codes and states were matched to at least one weather station, and that all matched weather stations exist in the weather data.
-# MAGIC 3. Create a new column called WEATHER_DATETIME by converting the DATE column in the weather data to a datetime type.
-# MAGIC 4. Perform an inner join of the airport - weather station linking table onto the weather dataset. The resulting dataset will only contain weather data for the stations of interest, and it may contain duplicate entries of weather if the same weather station corresponds to more than one airport. We may also find that one airport may correspond to more than one weather station.
-# MAGIC 5. Identify rows in the merged weather data with duplicated WEATHER_DATETIME and airport (ORIGIN_AIRPORT_ID). Address these duplicates by keeping the row with the smallest value in “distance_to_neighbor”. For any ties, just keep the first occurrence. This strategy allows us to keep more granular time in our weather data by making use of multiple stations.
-# MAGIC 6. Create a departure date-time column, called AIRLINES_DATETIME, in the airlines dataset by combining the FL_DATE, and departure time (CRS_DEP_TIME) into a datetime. Add a column called AIRLINES_DATETIME_SHIFTED to the airlines dataset that is equal to the departure datetime minus 2 hours. We will need to round the time down to the hour to help make merging onto the weather data easier, which can be accomplished by removing the last two digits from the departure time before converting to a datetime.
-# MAGIC 7. Finally, we can merge the airlines data and the weather data together as a one-sided (left) merge onto the airlines data using the columns: ORIGIN_AIRPORT_ID, AIRLINES_DATETIME_SHIFTED, and WEATHER_DATETIME. The resulting table should have exactly as many rows as the original airlines dataset.
-# MAGIC 
-# MAGIC With all three datasets merged, we would need to identify the number and proportion of flights that did not have any corresponding weather data. If this is a small enough set, we can drop rows that are missing weather data. If we find that we need to keep these rows, we can fill the missing values with averages for the given ORIGIN_AIRPORT_ID and MONTH. Any other important features with missing values can be handled similarly.
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC 
-# MAGIC # Joining the Data Sets
-# MAGIC 
-# MAGIC ![Join Schema](https://raw.githubusercontent.com/ColStaR/sparksandstripesforever/main/images/data_join_gantt.png)
-# MAGIC 
-# MAGIC Before we began feature engineering and machine learning, we first had to join weather and airlines datasets and address missing values. Since our goal was to predict the departure delay, we had to drop any rows that were missing values in all four of DEP_DELAY, DEP_DELAY_NEW, DEP_DEL15, and CANCELLED (if any one of these columns was available, we had sufficient information for our outcome variable). Note that in our case, we treated cancellations as delays.
-# MAGIC 
-# MAGIC The steps below detail how the join of the airlines and weather datasets was conducted:
-# MAGIC 1. First, we collected distinct pairs of airport codes from the ORIGIN column, and ORIGIN_STATE_ABR.
-# MAGIC 2. Having confirmed that all airport codes and their corresponding states were in the weather stations dataset using the neighbor_call and neighbor_state columns, we performed an inner join on these two fields such that we had a table containing: ORIGIN (neighbor_call), ORIGIN_STATE_ABR (neighbor_state), station_id, distance_to_neighbor. We then confirmed that all airport codes and states were matched to at least one weather station, and that all matched weather stations existed in the weather data.
-# MAGIC 3. Because each airport mapped to more than two hundred weather stations on average, for the sake of efficiency, we chose to narrow down to a set of two or three stations for each airport: we selected the airport weather stations (with a distance_to_neighbor equal to zero), the closest weather station from the airport with a distance greater than zero, and the furthest weather station from the airport.
-# MAGIC 4. We then performed an inner join of the airport/station linking table onto the weather dataset. The resulting dataset only contained weather data for the stations of interest, and some duplicate entries of weather where the same weather station corresponded to more than one airport. We also found that some airports corresponded to more than one weather station.
-# MAGIC 5. In the airplanes dataset we created a departure date-time column, called DEP_DATETIME, by combining the FL_DATE, and departure time (CRS_DEP_TIME) into a datetime. We added a column called DEP_DATETIME_LAG to the airlines dataset that was equal to the departure datetime minus 2 hours. We needed to round the time down to the hour to help make merging onto the weather data easier, which we accomplished by removing the last two digits from the departure time before converting to a datetime.
-# MAGIC 6. In the weather dataset, we created a new column called DEP_DATETIME (to align with the airport dataset) by converting the DATE column in the weather data to a datetime type. Then, we created an additional column called DEP_DATETIME_LAG, which rounded the DEP_DATETIME up to the next hour for the sake of the merge.
-# MAGIC 7. We then identified rows in the merged weather data with duplicated DEP_DATETIME and airport (ORIGIN). We aggregated these duplicated entries by averaging across the numeric features in the weather data. This strategy allowed us to keep more granular time in our weather data by making use of multiple stations.
-# MAGIC 8. Finally, we were able to join the airlines data and the weather/station data together as an inner merge using the columns ORIGIN and DEP_DATETIME_LAG. 
-# MAGIC 
-# MAGIC The resulting joined dataset had 40,933,735 rows for the years 2015-2021 and ran in 11 minutes on 4 cores.
-# MAGIC 
-# MAGIC ## Joined Dataset Schema
-# MAGIC - ORIGIN : string
-# MAGIC - DEP_DATETIME_LAG : timestamp
-# MAGIC - QUARTER : integer
-# MAGIC - MONTH : integer
-# MAGIC - DAY_OF_MONTH : integer
-# MAGIC - DAY_OF_WEEK : integer
-# MAGIC - FL_DATE : string
-# MAGIC - OP_UNIQUE_CARRIER : string
-# MAGIC - TAIL_NUM : string
-# MAGIC - OP_CARRIER_FL_NUM : integer
-# MAGIC - ORIGIN_AIRPORT_ID : integer
-# MAGIC - ORIGIN_AIRPORT_SEQ_ID : integer
-# MAGIC - ORIGIN_STATE_ABR : string
-# MAGIC - ORIGIN_WAC : integer
-# MAGIC - DEST : string
-# MAGIC - DEST_AIRPORT_ID : integer
-# MAGIC - DEST_AIRPORT_SEQ_ID : integer
-# MAGIC - DEST_STATE_ABR : string
-# MAGIC - DEST_WAC : integer
-# MAGIC - CRS_DEP_TIME : string
-# MAGIC - DEP_TIME : integer
-# MAGIC - DEP_DEL15 : double
-# MAGIC - DEP_DELAY : double
-# MAGIC - DIVERTED : double
-# MAGIC - DIV_AIRPORT_LANDINGS : integer
-# MAGIC - CANCELLED : double
-# MAGIC - CANCELLATION_CODE : string
-# MAGIC - CRS_ELAPSED_TIME : double
-# MAGIC - DISTANCE : double
-# MAGIC - YEAR : integer
-# MAGIC - DEP_HOUR : string
-# MAGIC - DEP_DAY : string
-# MAGIC - DEP_DATETIME : string
-# MAGIC - DATE : double
-# MAGIC - ELEVATION : double
-# MAGIC - SOURCE : double
-# MAGIC - HourlyAltimeterSetting : double
-# MAGIC - HourlyDewPointTemperature : double
-# MAGIC - HourlyWetBulbTemperature : double
-# MAGIC - HourlyDryBulbTemperature : double
-# MAGIC - HourlyPrecipitation : double
-# MAGIC - HourlyStationPressure : double
-# MAGIC - HourlySeaLevelPressure : double
-# MAGIC - HourlyRelativeHumidity : double
-# MAGIC - HourlyVisibility : double
-# MAGIC - HourlyWindSpeed : double
-# MAGIC - DATE_HOUR : double
-# MAGIC - distance_to_neighbor : double
-# MAGIC - neighbor_lat : double
-# MAGIC - neighbor_lon : double
-# MAGIC - time_zone_id : string
-# MAGIC - UTC_DEP_DATETIME_LAG : timestamp
-# MAGIC - UTC_DEP_DATETIME : timestamp
-# MAGIC - DEP_TIME_CLEANED : string
-# MAGIC - flight_id : string
-# MAGIC  
-# MAGIC  
-# MAGIC ### Links to data joining notebooks
-# MAGIC [Notebook in DataBricks](https://adb-731998097721284.4.azuredatabricks.net/?o=731998097721284#notebook/4423519682321930/command/1020093804821142)
-# MAGIC 
-# MAGIC [Notebook in GitHub](https://github.com/ColStaR/sparksandstripesforever/blob/main/Phase2/DLE_join_V1.py)
-
-# COMMAND ----------
-
 # MAGIC %md 
 # MAGIC 
 # MAGIC # Notes on Data Cleaning
@@ -773,7 +791,39 @@
 
 # MAGIC %md
 # MAGIC 
-# MAGIC # 7. Algorithms, Parameters, and Evaluations
+# MAGIC # 5. Metrics, Models, and Parameters Used
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## 5.1 Primary Evaluation Metrics
+# MAGIC 
+# MAGIC WHAT WERE THE EVALUATION METRICS THAT WERE USED?
+# MAGIC 
+# MAGIC WHAT IS THE MATH FORMULA FOR EACH METRIC?
+# MAGIC 
+# MAGIC WHY ARE WE FOCUSING ON THOSE METRICS? WHY ARE THEIR RESULTS MEANINGFUL?
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## 5.2 Machine Learning Models Used
+# MAGIC 
+# MAGIC WHAT MACHINE LEARNING MODELS WERE USED?
+# MAGIC 
+# MAGIC WHY WAS THE MODEL CHOSEN TO BE USED?
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## 5.3 Model Parameters Used
+# MAGIC 
+# MAGIC WHAT PARAMETERS WERE USED TO TRAIN EACH MODEL?
+# MAGIC 
+# MAGIC WHAT DOES EACH PARAMETER MATHEMATICALLY DO? (SAVE HOW THE PARAMETERS INFLUENCE THE RESULTS FOR THE RESULTS SECTION)
 
 # COMMAND ----------
 
@@ -923,7 +973,111 @@
 
 # MAGIC %md
 # MAGIC 
-# MAGIC # 8. Discussion of Evaluations and Experimental Results
+# MAGIC # 6. Experiments and Results
+# MAGIC 
+# MAGIC SUMMARY OF METRICS, MODELS, AND PARAMETERS TO BE USED IN EACH EXPERIMENT
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## 6.1 Logistic Regression - Baseline Model
+# MAGIC 
+# MAGIC ### 6.1.1 Description of the Model
+# MAGIC 
+# MAGIC ### 6.1.2 List of Parameters Used
+# MAGIC 
+# MAGIC ### 6.1.3 Experimental Results
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## 6.2 Random Forest Model
+# MAGIC 
+# MAGIC ### 6.2.1 Description of the Model
+# MAGIC 
+# MAGIC ### 6.2.2 List of Parameters Used
+# MAGIC 
+# MAGIC ### 6.2.3 Experimental Results
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## 6.3 Support Vector Machines Model
+# MAGIC 
+# MAGIC ### 6.3.1 Description of the Model
+# MAGIC 
+# MAGIC ### 6.3.2 List of Parameters Used
+# MAGIC 
+# MAGIC ### 6.3.3 Experimental Results
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## 6.4 Multilayer Perceptron Neural Network Model
+# MAGIC 
+# MAGIC ### 6.4.1 Description of the Model
+# MAGIC 
+# MAGIC ### 6.4.2 List of Parameters Used
+# MAGIC 
+# MAGIC ### 6.4.3 Experimental Results
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## 6.5 A Note About Gradient Boosted Trees Model
+# MAGIC 
+# MAGIC WHAT DID WE FIND IN OUR LIMITED TESTING?
+# MAGIC 
+# MAGIC WHY COULD WE NOT COMPLETE TESTING?
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC # 7. Discussion of Experimental Results
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## 7.1 Top Model Performance
+# MAGIC 
+# MAGIC WHAT MODEL PERFORMED THE BEST FROM THE EXPERIMENTS?
+# MAGIC 
+# MAGIC WHAT MODEL PERFORMED THE WORST FROM THE EXPERIMENTS?
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC 
+# MAGIC ## 7.2 Model Performance Comparison
+# MAGIC 
+# MAGIC HOW DID THE METRICS AND PERFORMANCE OF EACH MODEL DIFFER? COMPARE AGAINST BASE LINE AND AGAINST EACH OTHER
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## 7.3 Influence of Hyperparameter Tuning on Performance
+# MAGIC 
+# MAGIC FOR EACH MODEL, HOW DID PARAMETER TUNING CHANGE PERFORMANCE?
+# MAGIC 
+# MAGIC WHAT PARAMETERS WERE MOST BENEFICIAL TO EACH MODEL?
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## 7.4 Experimental Takeaways for the Business
+# MAGIC 
+# MAGIC WHAT DID WE LEARN FROM OUR EXPERIMENT?
+# MAGIC 
+# MAGIC HOW COULD OUR FINDINGS BE APPLIED TO THE BUSINESS?
 
 # COMMAND ----------
 
@@ -950,7 +1104,25 @@
 
 # MAGIC %md
 # MAGIC 
+# MAGIC # 8. Gap Analysis with Similar Projects
+# MAGIC 
+# MAGIC HOW DID OTHER TEAMS' TOP MODEL PERFORMANCE COMPARE TO OURS?
+# MAGIC 
+# MAGIC WHAT DID WE DO WELL IN COMPARISON TO OTHERS?
+# MAGIC 
+# MAGIC WHAT COULD WE IMPROVE UPON IN COMPARISON TO OTHERS?
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
 # MAGIC # 9. Performance and Scalability Concerns
+# MAGIC 
+# MAGIC WHAT WERE OUR BIGGEST ISSUES WHEN IT CAME TO PERFORMANCE?
+# MAGIC 
+# MAGIC WHAT WERE THE MOST TIME INTENSIVE TASKS TO DO IN OUR PROJECT?
+# MAGIC 
+# MAGIC AS OUR PROJECT SCALES IN SIZE, WHAT SCALABILITY ISSUES MAY WE ENCOUNTER?
 
 # COMMAND ----------
 
@@ -973,7 +1145,49 @@
 
 # MAGIC %md
 # MAGIC 
-# MAGIC # 10. Limitations, Challenges, and Future Work
+# MAGIC # 10. Project Challenges And Limitations
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## 10.1 Project Challenges
+# MAGIC 
+# MAGIC WHAT WERE ISSUES THAT WE ENCOUNTERED AND OVERCAME DURING THE PROJECT? (E.G. DIRTY DATA, CUSTOM CROSS VALIDATION, LEARNING A WHOLE NEW PLATFORM AND TOOL SET, ETC.)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## 10.2 Project Limitations
+# MAGIC 
+# MAGIC WHAT ISSUES PREVENTED US FROM ACCOMPLISHING WHAT WE HAD TO? (E.G. TIME CONSTRAINTS, RESOURCE CONSTRAINTS, LIMITED DATA, ETC.)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC # 11. Open Issues and Future Work
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## 11.1 Open Issues
+# MAGIC 
+# MAGIC WHAT ARE SOME ISSUES THAT STILL EXIST IN OUR PROJECT THAT COULD NOT BE OVERCOME?
+# MAGIC 
+# MAGIC WHAT WOULD BE SOME ISSUES IN THE FUTURE THAT OUR PROJECT WILL EXPERIENCE?
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## 11.2 Future Work
+# MAGIC 
+# MAGIC WHAT IDEAS WERE LEFT UNFINISHED OR ON THE CUTTING ROOM FLOOR?
+# MAGIC 
+# MAGIC WHAT WOULD HAVE BEEN SOME NICE TASKS THAT WE COULD HAVE DONE WITH MORE TIME/RESOURCES?
 
 # COMMAND ----------
 
@@ -1008,9 +1222,17 @@
 
 # MAGIC %md
 # MAGIC 
-# MAGIC # 11. Conclusion
+# MAGIC # 12. Conclusion
 # MAGIC 
 # MAGIC Shit was crazy, yo.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC # Special Thanks
+# MAGIC 
+# MAGIC Mai, for helping us with clusters to run GraphFrames for PageRank
 
 # COMMAND ----------
 
@@ -1035,7 +1257,7 @@
 
 # MAGIC %md
 # MAGIC 
-# MAGIC # 12. Appendix
+# MAGIC # 13. Appendix
 
 # COMMAND ----------
 

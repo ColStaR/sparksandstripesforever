@@ -30,6 +30,7 @@ from joblibspark import register_spark
 
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.ml.classification import LinearSVC
+from pyspark.ml.classification import MultilayerPerceptronClassifier
 
 import pandas as pd
 import numpy as np
@@ -295,6 +296,8 @@ downsampledDF, listOfYears = loadDownsampledData()
 print(f"listOfYears: {listOfYears}")
 display(downsampledDF)
 
+preppedDataDF_2021 = preppedDataDF.filter(col("YEAR") == 2021)
+
 # COMMAND ----------
 
 # MAGIC %md
@@ -485,6 +488,8 @@ for maxIter in maxIterGrid:
             try:
                 cv_stats = runBlockingTimeSeriesCrossValidation(downsampledDF, listOfYears, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
                 test_results = predictTestData(cv_stats, preppedDataDF)
+                print(cv_stats)
+                print(test_results)
 
                 grid_search = pd.concat([grid_search,test_results],axis=0)
             except:
@@ -493,11 +498,11 @@ for maxIter in maxIterGrid:
 print("! Job Finished!")
 print(f"! {getCurrentDateTimeFormatted()}\n")
 
-grid_search
+print(grid_search)
 
 # COMMAND ----------
 
-#runBlockingTimeSeriesCrossValidation(downsampledDF, listOfYears, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
+runBlockingTimeSeriesCrossValidation(downsampledDF, listOfYears, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
 
 # COMMAND ----------
 
@@ -1089,21 +1094,57 @@ reportMetrics_rf(precision, fPointFive, recall, accuracy)
 
 # MAGIC %md
 # MAGIC 
-# MAGIC # Other Code
-# MAGIC 
-# MAGIC Holding onto because it will be useful later on, or might provide useful features.
-# MAGIC 
-# MAGIC BinaryClassificationEvaluator
-# MAGIC 
-# MAGIC GridSearch
-# MAGIC 
-# MAGIC Model Weights
+# MAGIC # Multiclass 
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC 
-# MAGIC # Workspace
+testPreppedData_2017 = downsampledDF.filter(col("YEAR") == 2017)
+testPreppedData_2021 = preppedDataDF_2021
+print("Data Prepped")
+print(f"@ {getCurrentDateTimeFormatted()}")
+    
+maxIter = 100
+blockSize = 128
+stepSize = 0.03
+
+# specify layers for the neural network:
+# input layer of size 4 (features), two intermediate of size 5 and 4
+# and output of size 2 (classes)
+layers = [95, 5, 4, 2]
+# create the trainer and set its parameters
+multilayer_perceptrion_classifier = MultilayerPerceptronClassifier(
+            labelCol = "DEP_DEL15",
+            featuresCol = "features",
+            maxIter = maxIter,
+            layers = layers,
+            blockSize = blockSize,
+            stepSize = stepSize
+        )
+
+print("Model Created")
+print(f"@ {getCurrentDateTimeFormatted()}")
+
+# train the model
+model = multilayer_perceptrion_classifier.fit(testPreppedData_2017)
+
+print("Model Trained")
+print(f"@ {getCurrentDateTimeFormatted()}")
+
+# compute accuracy on the test set
+result = model.transform(testPreppedData_2021)
+
+print("Model Evaluated")
+print(f"@ {getCurrentDateTimeFormatted()}")
+
+display(result)
+
+# COMMAND ----------
+
+print(result.columns)
+
+# COMMAND ----------
+
+display(result.schema)
 
 # COMMAND ----------
 
