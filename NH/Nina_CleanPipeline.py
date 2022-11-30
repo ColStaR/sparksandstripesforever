@@ -286,7 +286,56 @@ df_all = get_flight_tracker(df_all)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### @Nash please join the pagerank data to df_all in function style
+# MAGIC ### Pagerank Join
+
+# COMMAND ----------
+
+PageranksByYear = spark.read.csv(f"{blob_url}/PageranksByYear.csv", header=True)
+
+
+def join_pr(df,pr):
+    pr = pr.withColumnRenamed('YEAR','YEAR2').distinct()
+    df = df.withColumn('YEARLAG1',
+                           df.YEAR - 1)
+
+
+
+    df = df.join(pr, (df["YEARLAG1"] == pr["YEAR2"]) &
+       ( df["DEST"] == pr["id"]),"inner")
+
+    df = df.drop("YEAR2","id")
+    return df
+
+
+
+# COMMAND ----------
+
+df_all_PR = join_pr(df_all,PageranksByYear) 
+#display(df_all_PR)
+df_all = df_all_PR
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### [Feature engineering] Freezing Rain and Blowing Snow:
+
+# COMMAND ----------
+
+from pyspark.sql.functions import when
+
+def get_rough_weather(df):
+    df = df.withColumn("Blowing Snow", when(df.HourlyPresentWeatherType.contains('BLSN'),1) \
+          .otherwise(0))
+
+    df = df.withColumn("Freezing Rain", when(df.HourlyPresentWeatherType.contains('FZRA'),1) \
+          .otherwise(0))
+    
+    df = df.drop("HourlyPresentWeatherType")
+    return df
+
+# COMMAND ----------
+
+#df_all = get_rough_weather(df_all)
 
 # COMMAND ----------
 
@@ -297,3 +346,11 @@ df_all = get_flight_tracker(df_all)
 
 #checkpoint to blob storage
 df_all.write.mode("overwrite").parquet(f"{blob_url}/joined_all_with_efeatures")
+
+# COMMAND ----------
+
+display(df_all)
+
+# COMMAND ----------
+
+
