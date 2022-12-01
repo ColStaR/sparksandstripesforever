@@ -331,7 +331,7 @@ def runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_inpu
         currentYearPredictions = lrModel.transform(cv_val).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
         
         for threshold in thresholds_list:
-            print(f"! Testing threshold {threshold}")
+#             print(f"! Testing threshold {threshold}")
 
             thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
                                                          .withColumn("prediction", (col('predicted_probability') > threshold).cast('double')).cache()
