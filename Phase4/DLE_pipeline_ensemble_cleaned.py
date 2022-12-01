@@ -115,17 +115,18 @@ test = df_joined_data_all_with_efeatures.filter(col('YEAR') == 2021).cache()
 
 def buildPipeline(trainDF, categoricals, numerics, Y="DEP_DEL15", oneHot=True, imputer=False, scaler=False):
     ## Current possible ways to handle categoricals in string indexer is 'error', 'keep', and 'skip'
-    indexers = map(lambda c: StringIndexer(inputCol=c, outputCol=c+"_idx", handleInvalid = 'keep'), categoricals)
-    
-    # Establish features columns
-    featureCols = list(map(lambda c: c+"_class", categoricals)) + numerics
+    indexers = map(lambda c: StringIndexer(inputCol=c, outputCol=c+"_idx", handleInvalid = 'skip'), categoricals)
     
     stages = list(indexers)
     
     if oneHot == True:
         ohes = map(lambda c: OneHotEncoder(inputCol=c + "_idx", outputCol=c+"_class"),categoricals)
+        # Establish features columns
+        featureCols = list(map(lambda c: c+"_class", categoricals)) + numerics
         stages += list(ohes)
-    
+    else:
+        featureCols = list(map(lambda c: c+"_idx", categoricals)) + numerics
+        
     if imputer==True:
         imputers = Imputer(inputCols = numerics, outputCols = numerics)
         stages += list(imputer)
@@ -151,10 +152,10 @@ def buildPipeline(trainDF, categoricals, numerics, Y="DEP_DEL15", oneHot=True, i
     return pipelineModel
 
 
-def getFeatureNames(pipelineModel):
+def getFeatureNames(preppedPipelineModel):
     # Get feature names for use later 
     meta = [f.metadata 
-        for f in pipelineModel.schema.fields 
+        for f in preppedPipelineModel.schema.fields 
         if f.name == 'features'][0]
 
     # access feature name and index
@@ -235,7 +236,7 @@ def predictTestData(cv_stats, dataFrameInput):
     selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
     dataset = dataFrameInput.select(selectedcols).cache()
     
-    ensemble_predictions = None
+    test_stats = pd.DataFrame()
     
     for row in range(len(cv_stats)):
         best_model = cv_stats.sort_values("val_F0.5", ascending=False).iloc[row]
@@ -254,9 +255,11 @@ def predictTestData(cv_stats, dataFrameInput):
     
         currentYearMetrics = testModelPerformance(thresholdPredictions)
         stats = pd.DataFrame([currentYearMetrics], columns=['test_Precision','test_Recall','test_F0.5','test_F1','test_Accuracy'])
-        stats = pd.concat([stats, best_model_stats], axis=1)
+        test_stats = pd.concat([test_stats, stats], axis=1)
+        
+    final_stats = pd.concat([stats, cv_stats], axis=1)
     
-    return stats
+    return final_stats
   
     
 def getFeatureImportance(featureNames, coefficients):
@@ -271,6 +274,11 @@ def getFeatureImportance(featureNames, coefficients):
 
 def runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_input=0, elasticNetParam_input=0,
                                          maxIter_input=10, thresholds_list = [0.5]):
+    """
+    Function which performs blocking time series cross validation
+    Takes the pipeline-prepped DF as an input, with options for number of desired folds and logistic regression parameters
+    Returns a pandas dataframe of validation performance metrics and the corresponding models
+    """
     
     cutoff = 1/cv_folds
     
@@ -316,14 +324,14 @@ def runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_inpu
 
 # COMMAND ----------
 
-temp = runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_input=0, elasticNetParam_input=0,
+cv_stats = runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_input=0, elasticNetParam_input=0,
                                          maxIter_input=10, thresholds_list = [0.5])
 
-temp
+cv_stats
 
 # COMMAND ----------
 
-feature_importances = getFeatureImportance(feature_names, list(temp.iloc[0]['trained_model'].coefficients))
+feature_importances = getFeatureImportance(feature_names, list(cv_stats.iloc[0]['trained_model'].coefficients))
 feature_importances.sort_values('importance', ascending=False)
 
 # COMMAND ----------
@@ -333,15 +341,15 @@ test_results
 
 # COMMAND ----------
 
-# regParamGrid = [0.0, 0.01, 0.5, 2.0]
-# elasticNetParamGrid = [0.0, 0.5, 1.0]
-# maxIterGrid = [5, 10, 50]
-# thresholds = [0.5, 0.6, 0.7, 0.8]
+regParamGrid = [0.0, 0.01, 0.5, 2.0]
+elasticNetParamGrid = [0.0, 0.5, 1.0]
+maxIterGrid = [5, 10, 50]
+thresholds = [v0.5, 0.6, 0.7, 0.8]
 
-regParamGrid = [0.0, 0.5]
-elasticNetParamGrid = [0.0, 1.0]
-maxIterGrid = [10]
-thresholds = [0.5, 0.6, 0.7, 0.8]
+# regParamGrid = [0.0, 0.5]
+# elasticNetParamGrid = [0.0, 1.0]
+# maxIterGrid = [10]
+# thresholds = [0.5, 0.6, 0.7, 0.8]
 
 grid_search = pd.DataFrame()
 
