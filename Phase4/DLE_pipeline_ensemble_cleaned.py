@@ -187,7 +187,7 @@ numerics = ['DISTANCE','ELEVATION','HourlyAltimeterSetting','HourlyDewPointTempe
 pipelineModel = buildPipeline(df_joined_data_all_with_efeatures.filter( col('YEAR') != 2021), 
                               categoricals, numerics, Y="DEP_DEL15", oneHot=True, imputer=False, scaler=False)
 
-preppedData = pipelineModel.transform(df_joined_data_all_with_efeatures).cache()
+preppedData = pipelineModel.transform(df_joined_data_all_with_efeatures)
 # preppedValid = pipelineModel.transform(valid).cache()
 # preppedTest = pipelineModel.transform(test).cache()
 
@@ -197,8 +197,6 @@ preppedTrain = preppedData.filter( col('YEAR') != 2021)\
 
 # valid = df_joined_data_all_with_efeatures.filter((col('FL_DATE') >= '2020-07-01') & (col('FL_DATE') < '2021-01-01')).cache()
 preppedTest = preppedData.filter(col('YEAR') == 2021).cache()
-
-#ran in 22 mins in first version
 
 # COMMAND ----------
 
