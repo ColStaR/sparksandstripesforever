@@ -39,6 +39,7 @@ from joblibspark import register_spark
 
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.ml.classification import LinearSVC
+from pyspark.ml.classification import MultilayerPerceptronClassifier
 
 import pandas as pd
 import numpy as np
@@ -1127,6 +1128,48 @@ print(df_joined_data_all_with_efeatures.filter(col("perc_delay").isNull()).count
 
 display(df_joined_data_all_with_efeatures.filter(col("perc_delay").isNotNull()))
 print(df_joined_data_all_with_efeatures.filter(col("perc_delay").isNotNull()).count())
+
+# COMMAND ----------
+
+testPreppedData_2017 = preppedDataDF.filter(col("YEAR") == 2017)
+testPreppedData_2021 = preppedDataDF.filter(col("YEAR") == 2021)
+print("Data Prepped")
+print(f"@ {getCurrentDateTimeFormatted()}")
+    
+maxIter = 100
+blockSize = 128
+stepSize = 0.03
+
+# specify layers for the neural network:
+# input layer of size 4 (features), two intermediate of size 5 and 4
+# and output of size 2 (classes)
+layers = [95, 5, 4, 2]
+# create the trainer and set its parameters
+multilayer_perceptrion_classifier = MultilayerPerceptronClassifier(
+            labelCol = "DEP_DEL15",
+            featuresCol = "features",
+            maxIter = maxIter,
+            layers = layers,
+            blockSize = blockSize,
+            stepSize = stepSize
+        )
+
+print("Model Created")
+print(f"@ {getCurrentDateTimeFormatted()}")
+
+# train the model
+model = multilayer_perceptrion_classifier.fit(testPreppedData_2017)
+
+print("Model Trained")
+print(f"@ {getCurrentDateTimeFormatted()}")
+
+# compute accuracy on the test set
+result = model.transform(testPreppedData_2021)
+
+print("Model Evaluated")
+print(f"@ {getCurrentDateTimeFormatted()}")
+
+display(result)
 
 # COMMAND ----------
 

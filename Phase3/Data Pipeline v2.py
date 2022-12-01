@@ -68,7 +68,7 @@ display(dbutils.fs.ls(f"{blob_url}"))
 print("**Data Loaded")
 print("**Loading Data Frame")
 
-df_joined_data_all_with_efeatures = spark.read.parquet(f"{blob_url}/joined_all_with_efeatures_v2_No2015")
+df_joined_data_all_with_efeatures = spark.read.parquet(f"{blob_url}/joined_all_with_efeatures")
 display(df_joined_data_all_with_efeatures)
 
 print("**Data Frame Loaded")
@@ -76,7 +76,7 @@ print("**Data Frame Loaded")
 # COMMAND ----------
 
 # Cast pagerank feature from string to double
-df_joined_data_all_with_efeatures = df_joined_data_all_with_efeatures.withColumn("pagerank",df_joined_data_all_with_efeatures.pagerank.cast('double'))
+#df_joined_data_all_with_efeatures = df_joined_data_all_with_efeatures.withColumn("pagerank",df_joined_data_all_with_efeatures.pagerank.cast('double'))
 
 # COMMAND ----------
 
@@ -88,7 +88,8 @@ df_joined_data_all_with_efeatures.printSchema()
 
 # Convert categorical features to One Hot Encoding
 
-categoricalColumns = ['ORIGIN', 'QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'FL_DATE', 'OP_UNIQUE_CARRIER', 'TAIL_NUM', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_STATE_ABR',  'DEST_AIRPORT_SEQ_ID', 'DEST_STATE_ABR', 'CRS_DEP_TIME', 'YEAR', 'AssumedEffect', 'is_prev_delayed']
+categoricalColumns = ['ORIGIN', 'QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'FL_DATE', 'OP_UNIQUE_CARRIER', 'TAIL_NUM', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_STATE_ABR',  'DEST_AIRPORT_SEQ_ID', 'DEST_STATE_ABR', 'CRS_DEP_TIME', 'YEAR', 'AssumedEffect_Text', 'is_prev_delayed', "Blowing_Snow", "Freezing_Rain"]
+#categoricalColumns = ['MONTH', 'ORIGIN_STATE_ABR']
 
 stages = [] # stages in Pipeline
 
@@ -111,6 +112,7 @@ for categoricalCol in categoricalColumns:
 # Create vectors for numeric and categorical variables
 
 numericCols = ['CRS_ELAPSED_TIME', 'DISTANCE','ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'perc_delay', 'pagerank']
+#numericCols = ['perc_delay', 'pagerank']
 
 assemblerInputs = [c + "classVec" for c in categoricalColumns] + numericCols
 
@@ -123,7 +125,10 @@ stages += [assembler]
 
 # COMMAND ----------
 
-# Takes about 4 minutes for Full
+# Takes about 6 minutes for Full
+
+# Convenience for reading pre-downsampled DF
+df_joined_data_all_with_efeatures = spark.read.parquet(f"{blob_url}/joined_all_with_efeatures_Downsampled")
 
 # Create the pipeline to be applied to the dataframes
 partialPipeline = Pipeline().setStages(stages)
@@ -132,6 +137,8 @@ partialPipeline = Pipeline().setStages(stages)
 pipelineModel = partialPipeline.fit(df_joined_data_all_with_efeatures)
 preppedDataDF = pipelineModel.transform(df_joined_data_all_with_efeatures).cache()
 
+# Get held-out DF
+preppedDataDF_2021 = preppedDataDF.filter(col("YEAR") == 2021)
 #display(preppedDataDF)
 
 # COMMAND ----------
@@ -292,11 +299,11 @@ def loadDownsampledData():
 #display(downsampledDF)
 
 # Run this if you want to load an existing saved copy of downsampled data.
-downsampledDF, listOfYears = loadDownsampledData()
-print(f"listOfYears: {listOfYears}")
-display(downsampledDF)
+#downsampledDF, listOfYears = loadDownsampledData()
+#print(f"listOfYears: {listOfYears}")
+#display(downsampledDF)
 
-preppedDataDF_2021 = preppedDataDF.filter(col("YEAR") == 2021)
+#preppedDataDF_2021 = preppedDataDF.filter(col("YEAR") == 2021)
 
 # COMMAND ----------
 
@@ -391,6 +398,7 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, listOfYears = [2015, 20
             currentYearMetrics = testModelPerformance(thresholdPredictions)
             print(f"@ Training Validated at threshold {threshold}: {currentYear}")
             print(f"@ {getCurrentDateTimeFormatted()}")
+            currentTime = getCurrentDateTimeFormatted()
         
             stats = pd.DataFrame([currentYearMetrics], columns=['val_Precision','val_Recall','val_F0.5','val_F1','val_Accuracy'])
             stats['year'] = currentYear
@@ -398,7 +406,10 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, listOfYears = [2015, 20
             stats['elasticNetParam'] = elasticNetParam_input
             stats['maxIter'] = maxIter_input
             stats['threshold'] = threshold
+            stats['creationTime'] = currentTime
             stats['trained_model'] = lrModel
+            
+            lrModel.save(spark, f"{blob_url}/model_lr_{currentTime}")
 
             cv_stats = pd.concat([cv_stats,stats],axis=0)
             
@@ -486,10 +497,10 @@ for maxIter in maxIterGrid:
         for regParam in regParamGrid:
             print(f"! regParam = {regParam}")
             try:
-                cv_stats = runBlockingTimeSeriesCrossValidation(downsampledDF, listOfYears, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
-                test_results = predictTestData(cv_stats, preppedDataDF)
-                print(cv_stats)
-                print(test_results)
+                cv_stats = runBlockingTimeSeriesCrossValidation(preppedDataDF, listOfYears, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
+                test_results = predictTestData(cv_stats, preppedDataDF_2021)
+                print(f"cv_stats: {cv_stats}")
+                print(f"test_results: {test_results}")
 
                 grid_search = pd.concat([grid_search,test_results],axis=0)
             except:
@@ -502,11 +513,11 @@ print(grid_search)
 
 # COMMAND ----------
 
-runBlockingTimeSeriesCrossValidation(downsampledDF, listOfYears, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
+testPD = runBlockingTimeSeriesCrossValidation(downsampledDF, listOfYears, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
 
 # COMMAND ----------
 
-print(grid_search)
+testPD
 
 # COMMAND ----------
 
@@ -552,12 +563,12 @@ def runBlockingTimeSeriesCrossValidation_RF(dataFrameInput, input_numTrees = 10,
         currentYearDF = dataFrameInput.filter(col("YEAR") == currentYear).cache()
 
         # Downscale the data such that there are roughly equal amounts of rows where DEP_DEL15 == 0 and DEP_DEL15 == 1, which aids in training.
-        currentYearDF_downsampled = getDownsampledDataFrame(currentYearDF).cache()
+#        currentYearDF_downsampled = getDownsampledDataFrame(currentYearDF).cache()
 
         # Adds a percentage column to each year's data frame, with the percentage corresponding to percentage of the year's time. 
         # 0% = earliest time that year. 100% = latest time that year.
         print(f"@ Appending percentages for year {currentYear}")
-        preppedDF = currentYearDF_downsampled.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
+        preppedDF = currentYearDF.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
 
         # remove unneeded columns. All feature values are captured in "features" vector. All the other retained features are for row tracking.
         selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
@@ -570,13 +581,13 @@ def runBlockingTimeSeriesCrossValidation_RF(dataFrameInput, input_numTrees = 10,
 
         # Create and train a logistic regression model for the year based on training data.
         print(f"@ Create Random Forest Classifier for year {currentYear}")
-        rf = RandomForest.trainClassifier(labelCol="DEP_DEL15", featuresCol="features", numTrees = input_numTrees, maxDepth = input_maxDepth, maxBins = input_maxBins, threshold = 0.5)
+        rf = RandomForestClassifier(labelCol="DEP_DEL15", featuresCol="features", numTrees = input_numTrees, maxDepth = input_maxDepth, maxBins = input_maxBins)
 #                rf = RandomForestClassifier(labelCol="DEP_DEL15", featuresCol="features", numTrees = input_numTrees, maxDepth = input_maxDepth, maxBins = input_maxBins, threshold = 0.5)
         print(f"@ Training RF model for year {currentYear}")
         rfModel = rf.fit(trainingData)
 
         print(f"@ Creating predictions for RF model for year {currentYear}")
-        currentYearPredictions = runModelPredictions(rfModel, trainingTestData
+        currentYearPredictions = runModel(rfModel, trainingTestData
                                                       ).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
 
         # After creating predictions percentages for each row in the trainingTestData from the model, evaluate predictions at different threshold values.
@@ -586,7 +597,7 @@ def runBlockingTimeSeriesCrossValidation_RF(dataFrameInput, input_numTrees = 10,
 
             currentYearMetrics = testModelPerformance(thresholdPredictions)
             stats = pd.DataFrame([currentYearMetrics], columns=['val_Precision','val_Recall','val_F0.5','val_F1','val_Accuracy'])
-            stats['year'] = year
+            stats['year'] = currentYear
             stats['numTrees'] = input_numTrees
             stats['maxDepth'] = input_maxDepth
             stats['maxBins'] = input_maxBins
@@ -664,19 +675,19 @@ def saveMetricsToAzure_RF(input_model, input_metrics):
 # COMMAND ----------
 
 # Hyperparameter Tuning Parameter Grid for Random Forest
-# Each CV takes about XX? minutes.
+# Each CV takes about 2.25 hours.
 
 #numTrees = [10, 25, 50]
 #maxDepth = [4, 8, 16]
 #maxBins = [32, 64, 128]
 #thresholds = [0.5, 0.6, 0.7, 0.8]
 
-numTreesGrid = [10]
-maxDepthGrid = [4]
-maxBinsGrid = [32]
+numTreesGrid = [10, 25]
+maxDepthGrid = [4, 8]
+maxBinsGrid = [32, 64]
 thresholds = [0.5]
 
-grid_search = pd.DataFrame()
+#grid_search = pd.DataFrame()
 
 for numTrees in numTreesGrid:
     print(f"! numTrees = {numTrees}")
@@ -684,9 +695,11 @@ for numTrees in numTreesGrid:
         print(f"! maxDepth = {maxDepth}")
         for maxBins in maxBinsGrid:
             print(f"! maxBins = {maxBins}")
+            for numTrees in numTreesGrid:
+                print(f"! numTrees = {numTrees}")
             try:
-                cv_stats = runBlockingTimeSeriesCrossValidation_RF(preppedDataDF, numTrees, maxDepth, maxBins, thresholds_list = thresholds)
-                test_results = predictTestData_RF(cv_stats, preppedDataDF)
+                cv_stats = runBlockingTimeSeriesCrossValidation_RF(downsampledDF, numTrees, maxDepth, maxBins, thresholds_list = thresholds)
+                test_results = predictTestData_RF(cv_stats, preppedDataDF_2021)
 
                 grid_search = pd.concat([grid_search,test_results],axis=0)
             except:
@@ -696,6 +709,10 @@ print("! Job Finished!")
 print(f"! {getCurrentDateTimeFormatted()}\n")
 
 grid_search
+
+# COMMAND ----------
+
+runBlockingTimeSeriesCrossValidation_RF(downsampledDF, input_numTrees = 10, input_maxDepth = 4, input_maxBins = 32, thresholds_list = [0.5, 0.7])
 
 # COMMAND ----------
 
@@ -1098,7 +1115,24 @@ reportMetrics_rf(precision, fPointFive, recall, accuracy)
 
 # COMMAND ----------
 
-testPreppedData_2017 = downsampledDF.filter(col("YEAR") == 2017)
+testPreppedData_2017 = preppedDataDF.filter(col("YEAR") == 2017)
+testPreppedData_2021 = preppedDataDF_2021
+
+# Get feature names for use later 
+meta = [f.metadata 
+    for f in testPreppedData_2017.schema.fields 
+    if f.name == 'features'][0]
+
+# access feature name and index
+feature_names = meta['ml_attr']['attrs']['binary'] + meta['ml_attr']['attrs']['numeric']
+# feature_names = pd.DataFrame(feature_names)
+feature_names = [feature['name'] for feature in feature_names]
+
+numFeatures = len(feature_names)
+
+# COMMAND ----------
+
+testPreppedData_2017 = preppedDataDF.filter(col("YEAR") == 2017)
 testPreppedData_2021 = preppedDataDF_2021
 print("Data Prepped")
 print(f"@ {getCurrentDateTimeFormatted()}")
@@ -1110,7 +1144,7 @@ stepSize = 0.03
 # specify layers for the neural network:
 # input layer of size 4 (features), two intermediate of size 5 and 4
 # and output of size 2 (classes)
-layers = [95, 5, 4, 2]
+layers = [numFeatures, 30, 15, 2]
 # create the trainer and set its parameters
 multilayer_perceptrion_classifier = MultilayerPerceptronClassifier(
             labelCol = "DEP_DEL15",
@@ -1136,15 +1170,62 @@ result = model.transform(testPreppedData_2021)
 print("Model Evaluated")
 print(f"@ {getCurrentDateTimeFormatted()}")
 
+result.show()
+
+# COMMAND ----------
+
 display(result)
 
 # COMMAND ----------
 
-print(result.columns)
+results2 = testModelPerformance(result)
+display(results2)
+
+# COMMAND ----------
+
+print(len(testPreppedData_2021.columns))
+
+# COMMAND ----------
+
+print(len(result.columns))
 
 # COMMAND ----------
 
 display(result.schema)
+
+# COMMAND ----------
+
+display(result.select(['DEP_DEL15','prediction']).take(5))
+
+# COMMAND ----------
+
+result.select(['DEP_DEL15','prediction']).take(5)
+
+# COMMAND ----------
+
+result.select(['DEP_DEL15','prediction'])
+
+# COMMAND ----------
+
+display(df_joined_data_all_with_efeatures.select(col("DEP_DEL15")).take(5))
+
+# COMMAND ----------
+
+
+columns = ["language","users_count"]
+data = [("Java", "20000"), ("Python", "100000"), ("Scala", "3000")]
+
+
+rdd = sc.parallelize(data)
+df = rdd.toDF()
+
+# COMMAND ----------
+
+display(df)
+
+# COMMAND ----------
+
+df.select(["_1", "_2"])
 
 # COMMAND ----------
 
