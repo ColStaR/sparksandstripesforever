@@ -113,6 +113,9 @@ test = df_joined_data_all_with_efeatures.filter(col('YEAR') == 2021).cache()
 
 # COMMAND ----------
 
+def getCurrentDateTimeFormatted():
+    return str(datetime.utcnow()).replace(" ", "-").replace(":", "-").replace(".", "-")
+
 def buildPipeline(trainDF, categoricals, numerics, Y="DEP_DEL15", oneHot=True, imputer=False, scaler=False):
     ## Current possible ways to handle categoricals in string indexer is 'error', 'keep', and 'skip'
     indexers = map(lambda c: StringIndexer(inputCol=c, outputCol=c+"_idx", handleInvalid = 'skip'), categoricals)
@@ -233,7 +236,7 @@ def predictTestData(cv_stats, dataFrameInput):
     print(f"@ Starting Test Evaluation")
     print(f"@ {getCurrentDateTimeFormatted()}")
     # Prepare 2021 Test Data
-    selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
+    selectedcols = ["DEP_DEL15", "YEAR", "features"]
     dataset = dataFrameInput.select(selectedcols).cache()
     
     test_stats = pd.DataFrame()
@@ -344,7 +347,7 @@ test_results
 regParamGrid = [0.0, 0.01, 0.5, 2.0]
 elasticNetParamGrid = [0.0, 0.5, 1.0]
 maxIterGrid = [5, 10, 50]
-thresholds = [v0.5, 0.6, 0.7, 0.8]
+thresholds = [0.5, 0.6, 0.7, 0.8]
 
 # regParamGrid = [0.0, 0.5]
 # elasticNetParamGrid = [0.0, 1.0]
@@ -361,17 +364,18 @@ for maxIter in maxIterGrid:
             print(f"! regParam = {regParam}")
             try:
                 cv_stats = runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
-                test_results = predictTestData(cv_stats, preppedTest)
+#                 test_results = predictTestData(cv_stats, preppedTest)
 
-                grid_search = pd.concat([grid_search,test_results],axis=0)
+                grid_search = pd.concat([grid_search,cv_stats],axis=0)
             except:
                 continue
             
-                        
+test_results = predictTestData(grid_search, preppedTest)
+
 print("! Job Finished!")
 print(f"! {getCurrentDateTimeFormatted()}\n")
 
-grid_search
+test_results
 
 # COMMAND ----------
 
