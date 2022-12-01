@@ -230,8 +230,6 @@ def testModelPerformance(predictions, y='DEP_DEL15'):
     
     return precision, recall, F05, F1, accuracy
 
-
-###### THIS WILL NOT RUN - WORK IN PROGRESS
 def predictTestData(cv_stats, dataFrameInput):
     
     print(f"@ Starting Test Evaluation")
@@ -264,7 +262,6 @@ def predictTestData(cv_stats, dataFrameInput):
     final_stats = pd.concat([stats, cv_stats], axis=1)
     
     return final_stats
-  
     
 def getFeatureImportance(featureNames, coefficients):
     
