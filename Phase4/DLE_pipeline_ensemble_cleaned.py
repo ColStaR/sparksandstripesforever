@@ -232,10 +232,8 @@ def predictTestData(cv_stats, dataFrameInput):
     print(f"@ Starting Test Evaluation")
     print(f"@ {getCurrentDateTimeFormatted()}")
     # Prepare 2021 Test Data
-    currentYearDF = dataFrameInput.filter(col("YEAR") == 2021).cache()
-    preppedDF = currentYearDF.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
     selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
-    dataset = preppedDF.select(selectedcols).cache()
+    dataset = dataFrameInput.select(selectedcols).cache()
     
     ensemble_predictions = None
     
@@ -247,24 +245,31 @@ def predictTestData(cv_stats, dataFrameInput):
         thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
                                                              .withColumn("prediction", (col('predicted_probability') > best_model['threshold']).cast('double') )
         
-        thresholdPredictions = thresholdPredictions.withColumn("row_id", monotonically_increasing_id())
+        thresholdPredictions = thresholdPredictions.withColumn("row_id", F.monotonically_increasing_id())
         
-        if ensemble_predictions == None:
-            ensemble_predictions = thresholdPredictions
-        else:
-            ensemble_predictions = ensemble_predictions.join(thresholdPredictions, ("row_id"))
-
+#         if ensemble_predictions == None:
+#             ensemble_predictions = thresholdPredictions
+#         else:
+#             ensemble_predictions = ensemble_predictions.join(thresholdPredictions, ("row_id"))
     
-    currentYearMetrics = testModelPerformance(thresholdPredictions)
-    stats = pd.DataFrame([currentYearMetrics], columns=['test_Precision','test_Recall','test_F0.5','test_F1','test_Accuracy'])
-    stats = pd.concat([stats, best_model_stats], axis=1)
+        currentYearMetrics = testModelPerformance(thresholdPredictions)
+        stats = pd.DataFrame([currentYearMetrics], columns=['test_Precision','test_Recall','test_F0.5','test_F1','test_Accuracy'])
+        stats = pd.concat([stats, best_model_stats], axis=1)
     
     return stats
+  
+    
+def getFeatureImportance(featureNames, coefficients):
+    
+    featureImportances = pd.DataFrame(zip(featureNames,coefficients), columns=['featureName','coefficient'])
+    featureImportances['importance'] = featureImportances['coefficient'].abs()
+    
+    return featureImportances
 
 
 # COMMAND ----------
 
-def runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=5, regParam_input=0, elasticNetParam_input=0,
+def runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_input=0, elasticNetParam_input=0,
                                          maxIter_input=10, thresholds_list = [0.5]):
     
     cutoff = 1/cv_folds
@@ -311,10 +316,20 @@ def runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=5, regParam_inpu
 
 # COMMAND ----------
 
-temp = runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=5, regParam_input=0, elasticNetParam_input=0,
+temp = runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_input=0, elasticNetParam_input=0,
                                          maxIter_input=10, thresholds_list = [0.5])
 
 temp
+
+# COMMAND ----------
+
+feature_importances = getFeatureImportance(feature_names, list(temp.iloc[0]['trained_model'].coefficients))
+feature_importances.sort_values('importance', ascending=False)
+
+# COMMAND ----------
+
+test_results = predictTestData(cv_stats, preppedTest)
+test_results
 
 # COMMAND ----------
 
@@ -337,8 +352,8 @@ for maxIter in maxIterGrid:
         for regParam in regParamGrid:
             print(f"! regParam = {regParam}")
             try:
-                cv_stats = runBlockingTimeSeriesCrossValidation(downsampledDF, listOfYears, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
-                test_results = predictTestData(cv_stats, preppedDataDF)
+                cv_stats = runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
+                test_results = predictTestData(cv_stats, preppedTest)
 
                 grid_search = pd.concat([grid_search,test_results],axis=0)
             except:
