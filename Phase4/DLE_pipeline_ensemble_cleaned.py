@@ -289,24 +289,27 @@ def runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_inpu
 
 
     for i in range(cv_folds):
+        
+        print(f"! Running fold {i+1} of {cv_folds}")
         min_perc = i*cutoff
         max_perc = min_perc + cutoff
         train_cutoff = min_perc + (0.7 * cutoff)
 
         cv_train = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= min_perc) & (col("DEP_DATETIME_LAG_percent") < train_cutoff))\
                                 .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
-        
+
         cv_val = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= train_cutoff) & (col("DEP_DATETIME_LAG_percent") < max_perc))\
                               .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
-        
+
         lr = LogisticRegression(labelCol="DEP_DEL15", featuresCol="features", regParam = regParam_input, elasticNetParam = elasticNetParam_input, 
                                 maxIter = maxIter_input, threshold = 0.5, standardization = True)
-        
+
         lrModel = lr.fit(cv_train)
 
         currentYearPredictions = lrModel.transform(cv_val).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
 
         for threshold in thresholds_list:
+            print(f"! Testing threshold {threshold}")
 
             thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
                                                          .withColumn("prediction", (col('predicted_probability') > threshold).cast('double') )
@@ -321,7 +324,7 @@ def runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_inpu
             stats['trained_model'] = lrModel
 
             cv_stats = pd.concat([cv_stats,stats],axis=0)
-            
+
     return cv_stats
 
 
