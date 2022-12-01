@@ -382,11 +382,11 @@ thresholds = [0.5, 0.6, 0.7, 0.8]
 grid_search = pd.DataFrame()
 
 for maxIter in maxIterGrid:
-    print(f"! maxIter = {maxIter}")
+    print(f"~ maxIter = {maxIter}")
     for elasticNetParam in elasticNetParamGrid:
-        print(f"! elasticNetParam = {elasticNetParam}")
+        print(f"~ elasticNetParam = {elasticNetParam}")
         for regParam in regParamGrid:
-            print(f"! regParam = {regParam}")
+            print(f"~ regParam = {regParam}")
             try:
                 cv_stats = runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_input=regParam, 
                                                                 elasticNetParam_input=elasticNetParam, maxIter_input=maxIter, 
@@ -400,8 +400,8 @@ for maxIter in maxIterGrid:
             
 test_results = predictTestData(grid_search, preppedTest)
 
-print("! Job Finished!")
-print(f"! {getCurrentDateTimeFormatted()}\n")
+print("~ Job Finished!")
+print(f"~ {getCurrentDateTimeFormatted()}\n")
 
 test_results
 
