@@ -91,64 +91,63 @@ print("**Data Frames Loaded")
 
 # COMMAND ----------
 
-Y = "DEP_DEL15"
-
-categoricals = ['ORIGIN','QUARTER','MONTH','DAY_OF_WEEK','OP_UNIQUE_CARRIER','ORIGIN_STATE_ABR',
-                'DEST','DEST_STATE_ABR','DEP_HOUR','AssumedEffect_Text','airline_type',
-                'is_prev_delayed','Blowing_Snow','Freezing_Rain','Rain','Snow','Thunder']
-
-numerics = ['DISTANCE','ELEVATION','HourlyAltimeterSetting','HourlyDewPointTemperature',
-            'HourlyWetBulbTemperature','HourlyDryBulbTemperature','HourlyPrecipitation',
-            'HourlyStationPressure','HourlySeaLevelPressure','HourlyRelativeHumidity',
-            'HourlyVisibility','HourlyWindSpeed','perc_delay',
-            'pagerank']
-
-
-train = df_joined_data_all_with_efeatures.filter( col('YEAR') != 2021)\
-                                         .withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))\
-                                         .cache()
-
-# valid = df_joined_data_all_with_efeatures.filter((col('FL_DATE') >= '2020-07-01') & (col('FL_DATE') < '2021-01-01')).cache()
-test = df_joined_data_all_with_efeatures.filter(col('YEAR') == 2021).cache()
-
-# COMMAND ----------
-
 def getCurrentDateTimeFormatted():
     return str(datetime.utcnow()).replace(" ", "-").replace(":", "-").replace(".", "-")
 
 def buildPipeline(trainDF, categoricals, numerics, Y="DEP_DEL15", oneHot=True, imputer=False, scaler=False):
     ## Current possible ways to handle categoricals in string indexer is 'error', 'keep', and 'skip'
-    indexers = map(lambda c: StringIndexer(inputCol=c, outputCol=c+"_idx", handleInvalid = 'skip'), categoricals)
+#     indexers = map(lambda c: StringIndexer(inputCol=c, outputCol=c+"_idx", handleInvalid = 'skip'), categoricals)
     
-    stages = list(indexers)
+#     stages = list(indexers)
     
-    if oneHot == True:
-        ohes = map(lambda c: OneHotEncoder(inputCol=c + "_idx", outputCol=c+"_class"),categoricals)
-        # Establish features columns
-        featureCols = list(map(lambda c: c+"_class", categoricals)) + numerics
-        stages += list(ohes)
-    else:
-        featureCols = list(map(lambda c: c+"_idx", categoricals)) + numerics
+    stages = [] # stages in Pipeline
+
+    # NOTE: Had to cut out a bunch of features due to the sheer number of NULLS in them, which were causing the entire dataframe to be skipped. Will need to get the Null values either filled or dropped.
+    cat_ending = '_idx'
+    if oneHot==True:
+        cat_ending = '_class'
         
-    if imputer==True:
+    
+    for categoricalCol in categoricals:
+        # Category Indexing with StringIndexer
+        indexers = StringIndexer(inputCol=categoricalCol, outputCol=categoricalCol + "_idx").setHandleInvalid("skip")
+        stages += [indexers]
+        
+        if oneHot==True:
+            # Use OneHotEncoder to convert categorical variables into binary SparseVectors
+            encoder = OneHotEncoder(inputCols=[indexers.getOutputCol()], outputCols=[categoricalCol + "_class"])
+            # Add stages.  These are not run here, but will run all at once later on.
+            stages += [encoder]
+            
+    featureCols = list(map(lambda c: c + cat_ending, categoricals)) + numerics
+        
+    ##############################################
+    
+#     if oneHot == True:
+#         ohes = map(lambda c: OneHotEncoder(inputCol=c + "_idx", outputCol=c+"_class"),categoricals)
+#         # Establish features columns
+#         featureCols = list(map(lambda c: c+"_class", categoricals)) + numerics
+#         stages += list(ohes)
+#     else:
+#         featureCols = list(map(lambda c: c+"_idx", categoricals)) + numerics
+        
+    if imputer == True:
         imputers = Imputer(inputCols = numerics, outputCols = numerics)
         stages += list(imputer)
     
     # Build the stage for the ML pipeline
-    model_matrix_stages = stages + \
-                         [VectorAssembler(inputCols=featureCols, outputCol="features").setHandleInvalid("skip")]
+    stages += [VectorAssembler(inputCols=featureCols, outputCol="features").setHandleInvalid("skip")]
 
     if scaler == True:
         # Apply StandardScaler to create scaledFeatures
-        scaler = StandardScaler(inputCol="features",
+        scalers = StandardScaler(inputCol="features",
                                 outputCol="scaledFeatures",
                                 withStd=True,
                                 withMean=True)
+        stages += [scalers]
 
-        pipeline = Pipeline(stages=model_matrix_stages+[scaler])
-    else:
-        pipeline = Pipeline(stages=model_matrix_stages)
     
+    pipeline = Pipeline().setStages(stages)
     
     pipelineModel = pipeline.fit(trainDF)
     
@@ -171,11 +170,35 @@ def getFeatureNames(preppedPipelineModel):
 
 # COMMAND ----------
 
-pipelineModel = buildPipeline(train, categoricals, numerics, Y="DEP_DEL15", oneHot=True, imputer=False, scaler=False)
+Y = "DEP_DEL15"
 
-preppedTrain = pipelineModel.transform(train).cache()
+categoricals = ['QUARTER','MONTH','DAY_OF_WEEK','OP_UNIQUE_CARRIER',
+                'DEP_HOUR','AssumedEffect_Text','airline_type',
+                'is_prev_delayed','Blowing_Snow','Freezing_Rain','Rain','Snow','Thunder']
+
+numerics = ['DISTANCE','ELEVATION','HourlyAltimeterSetting','HourlyDewPointTemperature',
+            'HourlyWetBulbTemperature','HourlyDryBulbTemperature','HourlyPrecipitation',
+            'HourlyStationPressure','HourlySeaLevelPressure','HourlyRelativeHumidity',
+            'HourlyVisibility','HourlyWindSpeed','perc_delay',
+            'pagerank']
+
+# COMMAND ----------
+
+pipelineModel = buildPipeline(df_joined_data_all_with_efeatures.filter( col('YEAR') != 2021), 
+                              categoricals, numerics, Y="DEP_DEL15", oneHot=True, imputer=False, scaler=False)
+
+preppedData = pipelineModel.transform(df_joined_data_all_with_efeatures).cache()
 # preppedValid = pipelineModel.transform(valid).cache()
-preppedTest = pipelineModel.transform(test).cache()
+# preppedTest = pipelineModel.transform(test).cache()
+
+preppedTrain = preppedData.filter( col('YEAR') != 2021)\
+                   .withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))\
+                   .cache()
+
+# valid = df_joined_data_all_with_efeatures.filter((col('FL_DATE') >= '2020-07-01') & (col('FL_DATE') < '2021-01-01')).cache()
+preppedTest = preppedData.filter(col('YEAR') == 2021).cache()
+
+#ran in 22 mins in first version
 
 # COMMAND ----------
 
@@ -295,19 +318,29 @@ def runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_inpu
         min_perc = i*cutoff
         max_perc = min_perc + cutoff
         train_cutoff = min_perc + (0.7 * cutoff)
+        
+        print('pre-split')
 
         cv_train = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= min_perc) & (col("DEP_DATETIME_LAG_percent") < train_cutoff))\
                                 .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
+        
+        print('post-train-split')
 
         cv_val = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= train_cutoff) & (col("DEP_DATETIME_LAG_percent") < max_perc))\
                               .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
+        
+        print('post-val-split')
 
         lr = LogisticRegression(labelCol="DEP_DEL15", featuresCol="features", regParam = regParam_input, elasticNetParam = elasticNetParam_input, 
                                 maxIter = maxIter_input, threshold = 0.5, standardization = True)
 
         lrModel = lr.fit(cv_train)
+        
+        print('post-fit')
 
         currentYearPredictions = lrModel.transform(cv_val).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
+        
+        print('post-val-transform')
 
         for threshold in thresholds_list:
             print(f"! Testing threshold {threshold}")
