@@ -226,7 +226,7 @@ def testModelPerformance(predictions, y='DEP_DEL15'):
             F = (1 + beta**2) * (precision * recall) / ((beta**2 * precision) + recall)
         return F
     
-    metrics = MulticlassMetrics(predictions.select(y, "prediction").rdd)
+#     metrics = MulticlassMetrics(predictions.select(y, "prediction").rdd)
     
     TP = predictions.filter((col(y)==1) & (col("prediction")==1)).count()
     TN = predictions.filter((col(y)==0) & (col("prediction")==0)).count()
@@ -317,28 +317,22 @@ def runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_inpu
         max_perc = min_perc + cutoff
         train_cutoff = min_perc + (0.7 * cutoff)
         
-        print('pre-split')
-
         cv_train = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= min_perc) & (col("DEP_DATETIME_LAG_percent") < train_cutoff))\
                                 .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
         
-        print('post-train-split')
-
         cv_val = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= train_cutoff) & (col("DEP_DATETIME_LAG_percent") < max_perc))\
                               .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
         
-        print('post-val-split')
+        print('post-spliting')
 
         lr = LogisticRegression(labelCol="DEP_DEL15", featuresCol="features", regParam = regParam_input, elasticNetParam = elasticNetParam_input, 
                                 maxIter = maxIter_input, threshold = 0.5, standardization = True)
 
         lrModel = lr.fit(cv_train)
         
-        print('post-fit')
-
         currentYearPredictions = lrModel.transform(cv_val).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
         
-        print('post-val-transform')
+        print('post-fit-transform')
 
         for threshold in thresholds_list:
             print(f"! Testing threshold {threshold}")

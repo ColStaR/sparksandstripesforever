@@ -115,7 +115,8 @@ df_weather = spark.read.parquet(f"{data_BASE_DIR}parquet_weather_data{data_size}
                        .select('STATION','DATE','ELEVATION','SOURCE', 'HourlyAltimeterSetting',
                                'HourlyDewPointTemperature', 'HourlyWetBulbTemperature','HourlyDryBulbTemperature', 
                                'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 
-                               'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed')\
+                               'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'HourlyPresentWeatherType')\
+                       .withColumn('ELEVATION', col('ELEVATION').cast('double'))\
                        .filter(col("STATION").isin(stations_list) ) \
                        .withColumn("DATE_HOUR", expr("substring(DATE, 0, 13)") ) \
                        .withColumn("DEP_DATETIME_LAG", to_timestamp(col("DATE_HOUR")) + expr("INTERVAL 1 HOURS"))
@@ -126,7 +127,7 @@ df_weather = spark.read.parquet(f"{data_BASE_DIR}parquet_weather_data{data_size}
 # 'MonthlyMinimumTemperature'
 
 
-# display(df_weather)
+display(df_weather)
 
 # COMMAND ----------
 
@@ -135,9 +136,13 @@ airport_weather = df_weather.join(airport_stations, 'STATION').drop("STATION",'n
 
 # COMMAND ----------
 
-airport_weather = airport_weather.groupBy('ORIGIN','DEP_DATETIME_LAG') \
-                                 .agg( *(avg(c).alias(c) for c in airport_weather.columns if c not in {'ORIGIN','DEP_DATETIME_LAG'}) )
+airport_weather_avg = airport_weather.groupBy('ORIGIN','DEP_DATETIME_LAG') \
+                                     .agg( *(avg(c).alias(c) for c in airport_weather.columns if c not in {'ORIGIN','DEP_DATETIME_LAG'}) )
 
+airport_weather = airport_weather_avg.join(airport_weather.select('ORIGIN','DEP_DATETIME_LAG','HourlyPresentWeatherType')\
+                                                          .groupby(['ORIGIN','DEP_DATETIME_LAG'])\
+                                     .agg(F.concat_ws("|", F.collect_list(col("HourlyPresentWeatherType"))).alias("AggHourlyPresentWeatherType")), 
+                                           ['ORIGIN', 'DEP_DATETIME_LAG']).drop('HourlyPresentWeatherType')
 
 # COMMAND ----------
 
