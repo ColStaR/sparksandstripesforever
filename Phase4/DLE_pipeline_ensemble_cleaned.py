@@ -270,7 +270,7 @@ def predictTestData(cv_stats, dataFrameInput):
         thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
                                                              .withColumn("prediction", (col('predicted_probability') > best_model['threshold']).cast('double') )
         
-        thresholdPredictions = thresholdPredictions.withColumn("row_id", F.monotonically_increasing_id())
+        thresholdPredictions = thresholdPredictions.withColumn("row_id", F.monotonically_increasing_id()).cache()
         
 #         if ensemble_predictions == None:
 #             ensemble_predictions = thresholdPredictions
@@ -323,8 +323,6 @@ def runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_inpu
         cv_val = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= train_cutoff) & (col("DEP_DATETIME_LAG_percent") < max_perc))\
                               .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
         
-        print('post-spliting')
-
         lr = LogisticRegression(labelCol="DEP_DEL15", featuresCol="features", regParam = regParam_input, elasticNetParam = elasticNetParam_input, 
                                 maxIter = maxIter_input, threshold = 0.5, standardization = True)
 
@@ -332,13 +330,11 @@ def runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_inpu
         
         currentYearPredictions = lrModel.transform(cv_val).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
         
-        print('post-fit-transform')
-
         for threshold in thresholds_list:
             print(f"! Testing threshold {threshold}")
 
             thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
-                                                         .withColumn("prediction", (col('predicted_probability') > threshold).cast('double') )
+                                                         .withColumn("prediction", (col('predicted_probability') > threshold).cast('double')).cache()
 
             currentYearMetrics = testModelPerformance(thresholdPredictions)
             stats = pd.DataFrame([currentYearMetrics], columns=['val_Precision','val_Recall','val_F0.5','val_F1','val_Accuracy'])
