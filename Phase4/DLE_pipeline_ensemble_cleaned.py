@@ -352,20 +352,20 @@ def runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_inpu
 
 # COMMAND ----------
 
-cv_stats = runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_input=0, elasticNetParam_input=0,
-                                         maxIter_input=10, thresholds_list = [0.5])
+# cv_stats = runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_input=0, elasticNetParam_input=0,
+#                                          maxIter_input=10, thresholds_list = [0.5])
 
-cv_stats
-
-# COMMAND ----------
-
-feature_importances = getFeatureImportance(feature_names, list(cv_stats.iloc[0]['trained_model'].coefficients))
-feature_importances.sort_values('importance', ascending=False)
+# cv_stats
 
 # COMMAND ----------
 
-test_results = predictTestData(cv_stats, preppedTest)
-test_results
+# feature_importances = getFeatureImportance(feature_names, list(cv_stats.iloc[0]['trained_model'].coefficients))
+# feature_importances.sort_values('importance', ascending=False)
+
+# COMMAND ----------
+
+# test_results = predictTestData(cv_stats, preppedTest)
+# test_results
 
 # COMMAND ----------
 
