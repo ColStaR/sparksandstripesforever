@@ -291,6 +291,7 @@ def runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_inpu
     for i in range(cv_folds):
         
         print(f"! Running fold {i+1} of {cv_folds}")
+        print(f"@ {getCurrentDateTimeFormatted()}")
         min_perc = i*cutoff
         max_perc = min_perc + cutoff
         train_cutoff = min_perc + (0.7 * cutoff)
