@@ -363,11 +363,14 @@ for maxIter in maxIterGrid:
         for regParam in regParamGrid:
             print(f"! regParam = {regParam}")
             try:
-                cv_stats = runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
+                cv_stats = runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_input=regParam, 
+                                                                elasticNetParam_input=elasticNetParam, maxIter_input=maxIter, 
+                                                                thresholds_list = thresholds)
 #                 test_results = predictTestData(cv_stats, preppedTest)
 
                 grid_search = pd.concat([grid_search,cv_stats],axis=0)
             except:
+                print('Error, continuing to next iteration')
                 continue
             
 test_results = predictTestData(grid_search, preppedTest)
