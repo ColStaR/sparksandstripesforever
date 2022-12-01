@@ -40,8 +40,6 @@ from sklearn import svm
 from joblibspark import register_spark
 
 from pyspark.ml.classification import RandomForestClassifier
-from pyspark.ml.classification import LinearSVC
-from pyspark.ml.classification import MultilayerPerceptronClassifier
 
 import pandas as pd
 import numpy as np
@@ -115,6 +113,9 @@ test = df_joined_data_all_with_efeatures.filter(col('YEAR') == 2021).cache()
 
 # COMMAND ----------
 
+def getCurrentDateTimeFormatted():
+    return str(datetime.utcnow()).replace(" ", "-").replace(":", "-").replace(".", "-")
+
 def buildPipeline(trainDF, categoricals, numerics, Y="DEP_DEL15", oneHot=True, imputer=False, scaler=False):
     ## Current possible ways to handle categoricals in string indexer is 'error', 'keep', and 'skip'
     indexers = map(lambda c: StringIndexer(inputCol=c, outputCol=c+"_idx", handleInvalid = 'skip'), categoricals)
@@ -167,6 +168,7 @@ def getFeatureNames(preppedPipelineModel):
     
     return feature_names
 
+
 # COMMAND ----------
 
 pipelineModel = buildPipeline(train, categoricals, numerics, Y="DEP_DEL15", oneHot=True, imputer=False, scaler=False)
@@ -177,18 +179,10 @@ preppedTest = pipelineModel.transform(test).cache()
 
 # COMMAND ----------
 
-print(preppedTrain.select("YEAR").filter(col("YEAR") == 2015).filter(col("DEP_DEL15") == 1).count())
-print(preppedTrain.select("YEAR").filter(col("YEAR") == 2015).filter(col("DEP_DEL15") == 0).count())
-
-# COMMAND ----------
-
 feature_names = getFeatureNames(preppedTrain)
 print(len(feature_names))
 
 # COMMAND ----------
-
-def getCurrentDateTimeFormatted():
-    return str(datetime.utcnow()).replace(" ", "-").replace(":", "-").replace(".", "-")
 
 def extract_prob(v):
     """
@@ -235,6 +229,8 @@ def testModelPerformance(predictions, y='DEP_DEL15'):
     
     return precision, recall, F05, F1, accuracy
 
+
+###### THIS WILL NOT RUN - WORK IN PROGRESS
 def predictTestData(cv_stats, dataFrameInput):
     
     print(f"@ Starting Test Evaluation")
@@ -267,6 +263,7 @@ def predictTestData(cv_stats, dataFrameInput):
     final_stats = pd.concat([stats, cv_stats], axis=1)
     
     return final_stats
+  
     
 def getFeatureImportance(featureNames, coefficients):
     
@@ -278,13 +275,7 @@ def getFeatureImportance(featureNames, coefficients):
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC 
-# MAGIC # Logistic Regression
-
-# COMMAND ----------
-
-def runBlockingTimeSeriesCrossValidation_LR(preppedTrain, cv_folds=4, regParam_input=0, elasticNetParam_input=0,
+def runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_input=0, elasticNetParam_input=0,
                                          maxIter_input=10, thresholds_list = [0.5]):
     """
     Function which performs blocking time series cross validation
@@ -298,24 +289,28 @@ def runBlockingTimeSeriesCrossValidation_LR(preppedTrain, cv_folds=4, regParam_i
 
 
     for i in range(cv_folds):
+        
+        print(f"! Running fold {i+1} of {cv_folds}")
+        print(f"@ {getCurrentDateTimeFormatted()}")
         min_perc = i*cutoff
         max_perc = min_perc + cutoff
         train_cutoff = min_perc + (0.7 * cutoff)
 
         cv_train = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= min_perc) & (col("DEP_DATETIME_LAG_percent") < train_cutoff))\
                                 .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
-        
+
         cv_val = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= train_cutoff) & (col("DEP_DATETIME_LAG_percent") < max_perc))\
                               .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
-        
+
         lr = LogisticRegression(labelCol="DEP_DEL15", featuresCol="features", regParam = regParam_input, elasticNetParam = elasticNetParam_input, 
                                 maxIter = maxIter_input, threshold = 0.5, standardization = True)
-        
+
         lrModel = lr.fit(cv_train)
 
         currentYearPredictions = lrModel.transform(cv_val).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
 
         for threshold in thresholds_list:
+            print(f"! Testing threshold {threshold}")
 
             thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
                                                          .withColumn("prediction", (col('predicted_probability') > threshold).cast('double') )
@@ -330,13 +325,13 @@ def runBlockingTimeSeriesCrossValidation_LR(preppedTrain, cv_folds=4, regParam_i
             stats['trained_model'] = lrModel
 
             cv_stats = pd.concat([cv_stats,stats],axis=0)
-            
+
     return cv_stats
 
 
 # COMMAND ----------
 
-cv_stats = runBlockingTimeSeriesCrossValidation_LR(preppedTrain, cv_folds=4, regParam_input=0, elasticNetParam_input=0,
+cv_stats = runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_input=0, elasticNetParam_input=0,
                                          maxIter_input=10, thresholds_list = [0.5])
 
 cv_stats
@@ -353,15 +348,15 @@ test_results
 
 # COMMAND ----------
 
-#regParamGrid = [0.0, 0.01, 0.5, 2.0]
-#elasticNetParamGrid = [0.0, 0.5, 1.0]
-#maxIterGrid = [5, 10, 50]
-#thresholds = [v0.5, 0.6, 0.7, 0.8]
-
-regParamGrid = [0.0, 0.5]
-elasticNetParamGrid = [0.0, 1.0]
-maxIterGrid = [10]
+regParamGrid = [0.0, 0.01, 0.5, 2.0]
+elasticNetParamGrid = [0.0, 0.5, 1.0]
+maxIterGrid = [5, 10, 50]
 thresholds = [0.5, 0.6, 0.7, 0.8]
+
+# regParamGrid = [0.0, 0.5]
+# elasticNetParamGrid = [0.0, 1.0]
+# maxIterGrid = [10]
+# thresholds = [0.5, 0.6, 0.7, 0.8]
 
 grid_search = pd.DataFrame()
 
@@ -372,137 +367,22 @@ for maxIter in maxIterGrid:
         for regParam in regParamGrid:
             print(f"! regParam = {regParam}")
             try:
-                cv_stats = runBlockingTimeSeriesCrossValidation_LR(preppedTrain, cv_folds=4, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
-                test_results = predictTestData(cv_stats, preppedTest)
+                cv_stats = runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_input=regParam, 
+                                                                elasticNetParam_input=elasticNetParam, maxIter_input=maxIter, 
+                                                                thresholds_list = thresholds)
+#                 test_results = predictTestData(cv_stats, preppedTest)
 
-                grid_search = pd.concat([grid_search,test_results],axis=0)
+                grid_search = pd.concat([grid_search,cv_stats],axis=0)
             except:
+                print('Error, continuing to next iteration')
                 continue
             
-                        
+test_results = predictTestData(grid_search, preppedTest)
+
 print("! Job Finished!")
 print(f"! {getCurrentDateTimeFormatted()}\n")
 
-grid_search
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC 
-# MAGIC # Random Forest
-
-# COMMAND ----------
-
-def runBlockingTimeSeriesCrossValidation_RF(preppedTrain, cv_folds=4, input_numTrees = 10, input_maxDepth = 4, input_maxBins = 32, thresholds_list = [0.5]):
-    """
-    Function which performs blocking time series cross validation
-    Takes the pipeline-prepped DF as an input, with options for number of desired folds and logistic regression parameters
-    Returns a pandas dataframe of validation performance metrics and the corresponding models
-    """
-    
-    cutoff = 1/cv_folds
-    
-    cv_stats = pd.DataFrame()
-
-
-    for i in range(cv_folds):
-        min_perc = i*cutoff
-        max_perc = min_perc + cutoff
-        train_cutoff = min_perc + (0.7 * cutoff)
-
-        cv_train = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= min_perc) & (col("DEP_DATETIME_LAG_percent") < train_cutoff))\
-                                .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
-        
-        cv_val = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= train_cutoff) & (col("DEP_DATETIME_LAG_percent") < max_perc))\
-                              .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
-        
-        rf = RandomForestClassifier(labelCol="DEP_DEL15", featuresCol="features", numTrees = input_numTrees, maxDepth = input_maxDepth, maxBins = input_maxBins)
-        
-        rfModel = rf.fit(cv_train)
-
-        currentYearPredictions = rfModel.transform(cv_val).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
-
-        for threshold in thresholds_list:
-
-            thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
-                                                         .withColumn("prediction", (col('predicted_probability') > threshold).cast('double') )
-
-            currentYearMetrics = testModelPerformance(thresholdPredictions)
-            stats = pd.DataFrame([currentYearMetrics], columns=['val_Precision','val_Recall','val_F0.5','val_F1','val_Accuracy'])
-            stats['cv_fold'] = i
-            stats['numTrees'] = input_numTrees
-            stats['maxDepth'] = input_maxDepth
-            stats['maxBins'] = input_maxBins
-            stats['threshold'] = threshold
-            stats['trained_model'] = rfModel
-
-            cv_stats = pd.concat([cv_stats,stats],axis=0)
-            
-    return cv_stats
-
-
-# COMMAND ----------
-
-cv_stats = runBlockingTimeSeriesCrossValidation_RF(preppedTrain, cv_folds=4, input_numTrees = 10, input_maxDepth = 4, input_maxBins = 32, thresholds_list = [0.5])
-
-cv_stats
-
-# COMMAND ----------
-
-feature_importances = getFeatureImportance(feature_names, list(cv_stats.iloc[0]['trained_model'].coefficients))
-feature_importances.sort_values('importance', ascending=False)
-
-# COMMAND ----------
-
-test_results = predictTestData(cv_stats, preppedTest)
 test_results
-
-# COMMAND ----------
-
-# Hyperparameter Tuning Parameter Grid for Random Forest
-# Each CV takes about 30 minutes.
-
-numTreesGrid = [10, 25, 50]
-maxDepthGrid = [4, 8, 16]
-maxBinsGrid = [32, 64, 128]
-thresholds = [0.5, 0.6, 0.7, 0.8]
-
-#numTreesGrid = [10, 25]
-#maxDepthGrid = [4, 8]
-#maxBinsGrid = [32, 64]
-#thresholds = [0.5]
-
-grid_search = pd.DataFrame()
-
-for numTrees in numTreesGrid:
-    print(f"! numTrees = {numTrees}")
-    for maxDepth in maxDepthGrid:
-        print(f"! maxDepth = {maxDepth}")
-        for maxBins in maxBinsGrid:
-            print(f"! maxBins = {maxBins}")
-            for numTrees in numTreesGrid:
-                print(f"! numTrees = {numTrees}")
-            try:
-                cv_stats = runBlockingTimeSeriesCrossValidation_RF(preppedTrain, 4, numTrees, maxDepth, maxBins, thresholds)
-                test_results = predictTestData(cv_stats, preppedTest)
-
-                grid_search = pd.concat([grid_search,test_results],axis=0)
-            except:
-                pass
-            
-print("! Job Finished!")
-print(f"! {getCurrentDateTimeFormatted()}\n")
-
-grid_search
-
-# COMMAND ----------
-
-grid_search
-
-# COMMAND ----------
-
-grid_spark_DF = spark.createDataFrame(grid_search.drop(columns=['trained_model']))
-display(grid_spark_DF)
 
 # COMMAND ----------
 
@@ -512,7 +392,8 @@ display(grid_spark_DF)
 
 # COMMAND ----------
 
-def runBlockingTimeSeriesCrossValidation_SVM(preppedTrain, cv_folds=4, regParam_input=0, maxIter_input=10, thresholds_list = [0.5]):
+def runBlockingTimeSeriesCrossValidation_SVM(preppedTrain, cv_folds=4, regParam_input=0,
+                                         maxIter_input=10, thresholds_list = [0.5]):
     """
     Function which performs blocking time series cross validation
     Takes the pipeline-prepped DF as an input, with options for number of desired folds and logistic regression parameters
@@ -523,24 +404,27 @@ def runBlockingTimeSeriesCrossValidation_SVM(preppedTrain, cv_folds=4, regParam_
     
     cv_stats = pd.DataFrame()
 
-
     for i in range(cv_folds):
+        
+        print(f"! Running fold {i+1} of {cv_folds}")
+        print(f"@ {getCurrentDateTimeFormatted()}")
         min_perc = i*cutoff
         max_perc = min_perc + cutoff
         train_cutoff = min_perc + (0.7 * cutoff)
 
         cv_train = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= min_perc) & (col("DEP_DATETIME_LAG_percent") < train_cutoff))\
                                 .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
-        
+
         cv_val = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= train_cutoff) & (col("DEP_DATETIME_LAG_percent") < max_perc))\
                               .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
-        
-        lsvc = LinearSVC(labelCol="DEP_DEL15", featuresCol="features", regParam = regParam_input, maxIter = maxIter_input, threshold = 0.5, standardization = True)
+
+        lsvc = LinearSVC(labelCol="DEP_DEL15", featuresCol="features", regParam = regParam_input, maxIter = maxIter_input)
         lsvc_model = lsvc.fit(cv_train)
         
         currentYearPredictions = lsvc_model.transform(cv_val).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
-
+        
         for threshold in thresholds_list:
+            print(f"! Testing threshold {threshold}")
 
             thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
                                                          .withColumn("prediction", (col('predicted_probability') > threshold).cast('double') )
@@ -549,12 +433,13 @@ def runBlockingTimeSeriesCrossValidation_SVM(preppedTrain, cv_folds=4, regParam_
             stats = pd.DataFrame([currentYearMetrics], columns=['val_Precision','val_Recall','val_F0.5','val_F1','val_Accuracy'])
             stats['cv_fold'] = i
             stats['regParam'] = regParam_input
+            stats['elasticNetParam'] = elasticNetParam_input
             stats['maxIter'] = maxIter_input
             stats['threshold'] = threshold
             stats['trained_model'] = lsvc_model
 
             cv_stats = pd.concat([cv_stats,stats],axis=0)
-            
+
     return cv_stats
 
 
@@ -576,106 +461,34 @@ test_results
 
 # COMMAND ----------
 
-#regParamGrid = [0.0, 0.01, 0.5, 2.0]
-#elasticNetParamGrid = [0.0, 0.5, 1.0]
-#maxIterGrid = [5, 10, 50]
-#thresholds = [v0.5, 0.6, 0.7, 0.8]
-
-regParamGrid = [0.0, 0.5]
-maxIterGrid = [10]
+regParamGrid = [0.0, 0.01, 0.5, 2.0]
+maxIterGrid = [5, 10, 50]
 thresholds = [0.5, 0.6, 0.7, 0.8]
+
+# regParamGrid = [0.0, 0.5]
+# maxIterGrid = [10]
+# thresholds = [0.5, 0.6, 0.7, 0.8]
 
 grid_search = pd.DataFrame()
 
 for maxIter in maxIterGrid:
     print(f"! maxIter = {maxIter}")
-    for elasticNetParam in elasticNetParamGrid:
-        print(f"! elasticNetParam = {elasticNetParam}")
-        for regParam in regParamGrid:
-            print(f"! regParam = {regParam}")
-            try:
-                cv_stats = runBlockingTimeSeriesCrossValidation_SVM(preppedTrain, cv_folds=4, regParam, maxIter, thresholds)
-                test_results = predictTestData(cv_stats, preppedTest)
+    for regParam in regParamGrid:
+        print(f"! regParam = {regParam}")
+        try:
+            cv_stats = runBlockingTimeSeriesCrossValidation_SVM(preppedTrain, cv_folds=4, regParam_input=regParam, 
+                                                            maxIter_input=maxIter, 
+                                                            thresholds_list = thresholds)
+#                 test_results = predictTestData(cv_stats, preppedTest)
 
-                grid_search = pd.concat([grid_search,test_results],axis=0)
-            except:
-                continue
+            grid_search = pd.concat([grid_search,cv_stats],axis=0)
+        except:
+            print('Error, continuing to next iteration')
+            continue
             
-                        
+test_results = predictTestData(grid_search, preppedTest)
+
 print("! Job Finished!")
 print(f"! {getCurrentDateTimeFormatted()}\n")
 
-grid_search
-
-# COMMAND ----------
-
-display(preppedTest)
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC 
-# MAGIC # Multilayer Perceptron Classifier
-
-# COMMAND ----------
-
-testPreppedData_2017 = preppedTrain.filter(col("YEAR") == 2017)
-testPreppedData_2021 = preppedTest
-
-# Get feature names for use later 
-meta = [f.metadata 
-    for f in testPreppedData_2017.schema.fields 
-    if f.name == 'features'][0]
-
-# access feature name and index
-feature_names = meta['ml_attr']['attrs']['binary'] + meta['ml_attr']['attrs']['numeric']
-# feature_names = pd.DataFrame(feature_names)
-feature_names = [feature['name'] for feature in feature_names]
-
-numFeatures = len(feature_names)
-print(numFeatures)
-
-# COMMAND ----------
-
-
-print("Data Prepped")
-print(f"@ {getCurrentDateTimeFormatted()}")
-    
-maxIter = 100
-blockSize = 128
-stepSize = 0.03
-
-# specify layers for the neural network:
-# input layer of size 4 (features), two intermediate of size 5 and 4
-# and output of size 2 (classes)
-layers = [numFeatures, 30, 15, 2]
-# create the trainer and set its parameters
-multilayer_perceptrion_classifier = MultilayerPerceptronClassifier(
-            labelCol = "DEP_DEL15",
-            featuresCol = "features",
-            maxIter = maxIter,
-            layers = layers,
-            blockSize = blockSize,
-            stepSize = stepSize
-        )
-
-print("Model Created")
-print(f"@ {getCurrentDateTimeFormatted()}")
-
-# train the model
-model = multilayer_perceptrion_classifier.fit(testPreppedData_2017)
-
-print("Model Trained")
-print(f"@ {getCurrentDateTimeFormatted()}")
-
-# compute accuracy on the test set
-result = model.transform(testPreppedData_2021)
-
-print("Model Evaluated")
-print(f"@ {getCurrentDateTimeFormatted()}")
-
-result.show()
-
-# COMMAND ----------
-
-
+test_results
