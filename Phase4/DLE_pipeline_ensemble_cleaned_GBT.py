@@ -159,10 +159,14 @@ def getFeatureNames(preppedPipelineModel, featureCol='features'):
     meta = [f.metadata 
         for f in preppedPipelineModel.schema.fields 
         if f.name == featureCol][0]
-
-    # access feature name and index
-    feature_names = meta['ml_attr']['attrs']['binary'] + meta['ml_attr']['attrs']['numeric']
-    # feature_names = pd.DataFrame(feature_names)
+    
+    try:
+        # access feature name and index
+        feature_names = meta['ml_attr']['attrs']['binary'] + meta['ml_attr']['attrs']['numeric']
+        # feature_names = pd.DataFrame(feature_names)
+    except:
+        feature_names = meta['ml_attr']['attrs']['nominal'] + meta['ml_attr']['attrs']['numeric']
+        
     feature_names = [feature['name'] for feature in feature_names]
     
     return feature_names
@@ -185,7 +189,7 @@ numerics = ['DISTANCE','ELEVATION','HourlyAltimeterSetting','HourlyDewPointTempe
 # COMMAND ----------
 
 pipelineModel = buildPipeline(df_joined_data_all_with_efeatures.filter( col('YEAR') != 2021), 
-                              categoricals, numerics, Y="DEP_DEL15", oneHot=True, imputer=False, scaler=False)
+                              categoricals, numerics, Y="DEP_DEL15", oneHot=False, imputer=False, scaler=False)
 
 preppedData = pipelineModel.transform(df_joined_data_all_with_efeatures)
 # preppedValid = pipelineModel.transform(valid).cache()
@@ -420,11 +424,6 @@ test_results
 
 # COMMAND ----------
 
-test_results = predictTestData(grid_search, preppedTest)
-test_results
-
-# COMMAND ----------
-
 grid_spark_DF = spark.createDataFrame(test_results.drop(columns=['trained_model']))
 grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/logistic_regression_grid_CV_120122")
 
@@ -454,7 +453,7 @@ feature_importances
 def runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, cv_folds=4, input_maxIter = 20, input_maxDepth = 5, input_maxBins = 32, input_stepSize = 0.1, thresholds_list = [0.5]):
     """
     Function which performs blocking time series cross validation
-    Takes the pipeline-prepped DF as an input, with options for number of desired folds and logistic regression parameters
+    Takes the pipeline-prepped DF as an input, with options for number of desired folds and GBT parameters
     Returns a pandas dataframe of validation performance metrics and the corresponding models
     """
     
@@ -464,28 +463,33 @@ def runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, cv_folds=4, input_max
 
 
     for i in range(cv_folds):
+        
+        print(f"! Running fold {i+1} of {cv_folds}")
+        print(f"@ {getCurrentDateTimeFormatted()}")
         min_perc = i*cutoff
         max_perc = min_perc + cutoff
         train_cutoff = min_perc + (0.7 * cutoff)
-
+        
         cv_train = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= min_perc) & (col("DEP_DATETIME_LAG_percent") < train_cutoff))\
-                                .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
+                                .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", featureCol]).cache()
         
         cv_val = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= train_cutoff) & (col("DEP_DATETIME_LAG_percent") < max_perc))\
-                              .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
+                              .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", featureCol]).cache()
         
-        gbt = GBTClassifier(labelCol = 'DEP_DEL15', featuresCol = 'features', input_maxIter, input_maxDepth, input_maxBins, input_stepSize)
+        gbt = GBTClassifier(labelCol='DEP_DEL15', featuresCol='features', maxIter=input_maxIter, 
+                            maxDepth=input_maxDepth, maxBins=input_maxBins, stepSize=input_stepSize)
         gbt_model = gbt.fit(cv_train)
 
         currentYearPredictions = gbt_model.transform(cv_val).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
-
+        
+        print(f"!! Starting threshold search")
         for threshold in thresholds_list:
+#             print(f"! Testing threshold {threshold}")
 
             thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
-                                                         .withColumn("prediction", (col('predicted_probability') > threshold).cast('double') )
+                                                         .withColumn("prediction", (col('predicted_probability') > threshold).cast('double')).cache()
 
             currentYearMetrics = testModelPerformance(thresholdPredictions)
-            stats = pd.DataFrame([currentYearMetrics], columns=['val_Precision','val_Recall','val_F0.5','val_F1','val_Accuracy'])
             stats['cv_fold'] = i
             stats['maxIter'] = input_maxIter
             stats['maxDepth'] = input_maxDepth
@@ -498,6 +502,12 @@ def runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, cv_folds=4, input_max
             
     return cv_stats
 
+
+# COMMAND ----------
+
+cv_stats = runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, cv_folds=4, input_maxIter = maxIter, 
+                                                                    input_maxDepth = maxDepth, input_maxBins = maxBins, 
+                                                                    input_stepSize = stepSize, thresholds_list = thresholds)
 
 # COMMAND ----------
 
