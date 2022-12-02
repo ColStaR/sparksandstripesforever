@@ -750,7 +750,8 @@ def getFeatures(inputDF):
 
 # COMMAND ----------
 
-# Each CV takes about 75 minutes.
+# Each CV takes about 90 minutes for 2 hidden layers.
+# Takes about 45 for 1 hidden layer.
 
 #regParamGrid = [0.0, 0.01, 0.5, 2.0]
 #elasticNetParamGrid = [0.0, 0.5, 1.0]
