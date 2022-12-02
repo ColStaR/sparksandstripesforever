@@ -449,6 +449,11 @@ test_results
 
 # COMMAND ----------
 
+grid_spark_DF = spark.createDataFrame(test_results.drop(columns=['trained_model']))
+grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/logistic_regression_grid_CV_120222")
+
+# COMMAND ----------
+
 agg_results = test_results.drop(columns=['trained_model']).groupby(['regParam','elasticNetParam','maxIter','threshold']).mean()
 
 rP, eNP, mI, thresh = agg_results[agg_results['val_F0.5'] == agg_results['val_F0.5'].max()].index[0]
@@ -461,11 +466,6 @@ best_model = test_results[(test_results['regParam']==rP) &
 best_model_save = best_model[best_model['val_F0.5']==best_model['val_F0.5'].max()].iloc[0]['trained_model']
 
 best_model
-
-# COMMAND ----------
-
-grid_spark_DF = spark.createDataFrame(test_results.drop(columns=['trained_model']))
-grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/logistic_regression_grid_CV_120122")
 
 # COMMAND ----------
 
@@ -524,7 +524,7 @@ plt.plot(thresh, fScoreThresholds.select('recall').collect(), color='blue')
 plt.legend(['F0.5 Score', 'Precision','Recall'], bbox_to_anchor=(1.05, 1))
 plt.xlabel('Threshold')
 plt.ylabel('Score')
-plt.title(f'Scores By Threshold (Max F0.5 = {})')
+plt.title(f'Scores By Threshold')
 plt.show()
 
 # COMMAND ----------
