@@ -39,7 +39,7 @@ from sklearn import datasets
 from sklearn import svm
 from joblibspark import register_spark
 
-from pyspark.ml.classification import RandomForestClassifier
+from pyspark.ml.classification import GBTClassifier
 
 import pandas as pd
 import numpy as np
@@ -288,7 +288,7 @@ def predictTestData(cv_stats, dataFrameInput, featureCol='features'):
         stats = pd.DataFrame([currentYearMetrics], columns=['test_Precision','test_Recall','test_F0.5','test_F1','test_Accuracy'])
         test_stats = pd.concat([test_stats, stats], axis=1)
         
-    final_stats = pd.concat([stats, cv_stats], axis=1)
+    final_stats = pd.concat([stats.reset_index(drop=True), cv_stats.reset_index(drop=True)], axis=1)
     
     #clean up cachced DFs
     dataset.unpersist()
@@ -450,7 +450,7 @@ feature_importances
 
 # COMMAND ----------
 
-def runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, cv_folds=4, input_maxIter = 20, input_maxDepth = 5, input_maxBins = 32, input_stepSize = 0.1, thresholds_list = [0.5]):
+def runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, featureCol='features', cv_folds=4, input_maxIter = 20, input_maxDepth = 5, input_maxBins = 32, input_stepSize = 0.1, thresholds_list = [0.5]):
     """
     Function which performs blocking time series cross validation
     Takes the pipeline-prepped DF as an input, with options for number of desired folds and GBT parameters
@@ -490,6 +490,7 @@ def runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, cv_folds=4, input_max
                                                          .withColumn("prediction", (col('predicted_probability') > threshold).cast('double')).cache()
 
             currentYearMetrics = testModelPerformance(thresholdPredictions)
+            stats = pd.DataFrame([currentYearMetrics], columns=['val_Precision','val_Recall','val_F0.5','val_F1','val_Accuracy'])
             stats['cv_fold'] = i
             stats['maxIter'] = input_maxIter
             stats['maxDepth'] = input_maxDepth
@@ -499,15 +500,18 @@ def runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, cv_folds=4, input_max
             stats['trained_model'] = gbt_model
 
             cv_stats = pd.concat([cv_stats,stats],axis=0)
-            
+    #clean up cachced DFs
+    cv_train.unpersist()
+    cv_val.unpersist()
+    currentYearPredictions.unpersist()
+    thresholdPredictions.unpersist()
+    
     return cv_stats
 
 
 # COMMAND ----------
 
-cv_stats = runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, cv_folds=4, input_maxIter = maxIter, 
-                                                                    input_maxDepth = maxDepth, input_maxBins = maxBins, 
-                                                                    input_stepSize = stepSize, thresholds_list = thresholds)
+cv_stats
 
 # COMMAND ----------
 
@@ -531,14 +535,14 @@ for maxIter in maxIterGrid:
             print(f"! maxBins = {maxBins}")
             for maxDepth in maxDepthGrid:
                 print(f"! maxDepth = {maxDepth}")
-            try:
-                cv_stats = runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, cv_folds=4, input_maxIter = maxIter, 
-                                                                    input_maxDepth = maxDepth, input_maxBins = maxBins, 
-                                                                    input_stepSize = stepSize, thresholds_list = thresholds)
+                try:
+                    cv_stats = runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, cv_folds=4, input_maxIter = maxIter, 
+                                                                        input_maxDepth = maxDepth, input_maxBins = maxBins, 
+                                                                        input_stepSize = stepSize, thresholds_list = thresholds)
 
-                grid_search = pd.concat([grid_search,cv_stats],axis=0)
-            except:
-                continue
+                    grid_search = pd.concat([grid_search,cv_stats],axis=0)
+                except:
+                    continue
 
 test_results = predictTestData(cv_stats, preppedTest)
 

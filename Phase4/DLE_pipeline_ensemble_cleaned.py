@@ -282,9 +282,9 @@ def predictTestData(cv_stats, dataFrameInput, featureCol='features'):
 
         currentYearMetrics = testModelPerformance(thresholdPredictions)
         stats = pd.DataFrame([currentYearMetrics], columns=['test_Precision','test_Recall','test_F0.5','test_F1','test_Accuracy'])
-        test_stats = pd.concat([test_stats, stats], axis=1)
+        test_stats = pd.concat([test_stats, stats], axis=0)
         
-    final_stats = pd.concat([stats, cv_stats], axis=1)
+    final_stats = pd.concat([stats.reset_index(), cv_stats.reset_index()], axis=1)
     
     #clean up cachced DFs
     dataset.unpersist()
@@ -420,8 +420,15 @@ test_results
 
 # COMMAND ----------
 
-test_results = predictTestData(grid_search, preppedTest)
+test_results = predictTestData(grid_search.head(2), preppedTest)
 test_results
+
+# COMMAND ----------
+
+preds = grid_search[grid_search['val_F0.5']==grid_search['val_F0.5'].max()
+           ].iloc[0]['trained_model'].transform(preppedTest).withColumn("predicted_probability", extract_prob_udf(col("probability")))
+
+preds.write.mode('overwrite').parquet(f"{blob_url}/best_LR_predictions")
 
 # COMMAND ----------
 
@@ -440,8 +447,17 @@ test_results.loc[test_results['val_F0.5'] == test_results['val_F0.5'].max(), 'tr
 
 # COMMAND ----------
 
-feature_importances = getFeatureImportance(feature_names,)
+feature_importances = getFeatureImportance(feature_names,grid_search[grid_search['val_F0.5']==grid_search['val_F0.5'].max()
+                                                                    ].iloc[0]['trained_model'].coefficients)
 feature_importances
+
+# COMMAND ----------
+
+feature_importances.head(50)
+
+# COMMAND ----------
+
+feature_importances.to_parquet(f"{blob_url}/logistic_regression_grid_CV_120122")
 
 # COMMAND ----------
 
