@@ -284,7 +284,7 @@ def predictTestData(cv_stats, dataFrameInput, featureCol='features'):
         stats = pd.DataFrame([currentYearMetrics], columns=['test_Precision','test_Recall','test_F0.5','test_F1','test_Accuracy'])
         test_stats = pd.concat([test_stats, stats], axis=0)
         
-    final_stats = pd.concat([stats.reset_index(), cv_stats.reset_index()], axis=1)
+    final_stats = pd.concat([stats.reset_index(drop=True), cv_stats.reset_index(drop=True)], axis=1)
     
     #clean up cachced DFs
     dataset.unpersist()
@@ -292,12 +292,22 @@ def predictTestData(cv_stats, dataFrameInput, featureCol='features'):
     return final_stats
   
     
-def getFeatureImportance(featureNames, coefficients):
+def getFeatureNames(preppedPipelineModel, featureCol='features'):
+    # Get feature names for use later 
+    meta = [f.metadata 
+        for f in preppedPipelineModel.schema.fields 
+        if f.name == featureCol][0]
     
-    featureImportances = pd.DataFrame(zip(featureNames,coefficients), columns=['featureName','coefficient'])
-    featureImportances['importance'] = featureImportances['coefficient'].abs()
+    try:
+        # access feature name and index
+        feature_names = meta['ml_attr']['attrs']['binary'] + meta['ml_attr']['attrs']['numeric']
+        # feature_names = pd.DataFrame(feature_names)
+    except:
+        feature_names = meta['ml_attr']['attrs']['nominal'] + meta['ml_attr']['attrs']['numeric']
+        
+    feature_names = [feature['name'] for feature in feature_names]
     
-    return featureImportances
+    return feature_names
 
 
 # COMMAND ----------
@@ -404,24 +414,24 @@ for maxIter in maxIterGrid:
                 cv_stats = runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_input=regParam, 
                                                                 elasticNetParam_input=elasticNetParam, maxIter_input=maxIter, 
                                                                 thresholds_list = thresholds)
-#                 test_results = predictTestData(cv_stats, preppedTest)
 
                 grid_search = pd.concat([grid_search,cv_stats],axis=0)
             except:
                 print('Error, continuing to next iteration')
                 continue
-            
+
+
+grid_search
+
+# COMMAND ----------
+
 test_results = predictTestData(grid_search, preppedTest)
-
-print("~ Job Finished!")
-print(f"~ {getCurrentDateTimeFormatted()}\n")
-
 test_results
 
 # COMMAND ----------
 
-test_results = predictTestData(grid_search.head(2), preppedTest)
-test_results
+grid_spark_DF = spark.createDataFrame(test_results.drop(columns=['trained_model']))
+grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/logistic_regression_grid_CV_120122")
 
 # COMMAND ----------
 
@@ -432,18 +442,13 @@ preds.write.mode('overwrite').parquet(f"{blob_url}/best_LR_predictions")
 
 # COMMAND ----------
 
-grid_spark_DF = spark.createDataFrame(test_results.drop(columns=['trained_model']))
-grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/logistic_regression_grid_CV_120122")
+# import joblib
+
+# joblib.dump(test_results, 'logistic_regression_grid_models_120122.pkl')
 
 # COMMAND ----------
 
-import joblib
-
-joblib.dump(test_results, 'logistic_regression_grid_models_120122.pkl')
-
-# COMMAND ----------
-
-test_results.loc[test_results['val_F0.5'] == test_results['val_F0.5'].max(), 'trained_model']
+# test_results.loc[test_results['val_F0.5'] == test_results['val_F0.5'].max(), 'trained_model']
 
 # COMMAND ----------
 
