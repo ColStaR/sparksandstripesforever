@@ -136,7 +136,7 @@ def buildPipeline(trainDF, categoricals, numerics, Y="DEP_DEL15", oneHot=True, i
         
     if imputer == True:
         imputers = Imputer(inputCols = numerics, outputCols = numerics)
-        stages += list(imputer)
+        stages += list(imputers)
     
     # Build the stage for the ML pipeline
     stages += [VectorAssembler(inputCols=featureCols, outputCol="features").setHandleInvalid("skip")]
@@ -157,11 +157,11 @@ def buildPipeline(trainDF, categoricals, numerics, Y="DEP_DEL15", oneHot=True, i
     return pipelineModel
 
 
-def getFeatureNames(preppedPipelineModel):
+def getFeatureNames(preppedPipelineModel, featureCol='features'):
     # Get feature names for use later 
     meta = [f.metadata 
         for f in preppedPipelineModel.schema.fields 
-        if f.name == 'features'][0]
+        if f.name == featureCol][0]
 
     # access feature name and index
     feature_names = meta['ml_attr']['attrs']['binary'] + meta['ml_attr']['attrs']['numeric']
@@ -188,7 +188,7 @@ numerics = ['DISTANCE','ELEVATION','HourlyAltimeterSetting','HourlyDewPointTempe
 # COMMAND ----------
 
 pipelineModel = buildPipeline(df_joined_data_all_with_efeatures.filter( col('YEAR') != 2021), 
-                              categoricals, numerics, Y="DEP_DEL15", oneHot=True, imputer=False, scaler=False)
+                              categoricals, numerics, Y="DEP_DEL15", oneHot=True, imputer=True, scaler=True)
 
 preppedData = pipelineModel.transform(df_joined_data_all_with_efeatures)
 # preppedValid = pipelineModel.transform(valid).cache()
@@ -847,6 +847,161 @@ display(result.select("DEP_DEL15", "prediction"))
 # COMMAND ----------
 
 testModelPerformance(result, y='DEP_DEL15')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC # Gradient Boosted Trees
+
+# COMMAND ----------
+
+def runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, cv_folds=4, input_maxIter = 20, input_maxDepth = 5, input_maxBins = 32, input_stepSize = 0.1, thresholds_list = [0.5]):
+    """
+    Function which performs blocking time series cross validation
+    Takes the pipeline-prepped DF as an input, with options for number of desired folds and logistic regression parameters
+    Returns a pandas dataframe of validation performance metrics and the corresponding models
+    """
+    
+    cutoff = 1/cv_folds
+    
+    cv_stats = pd.DataFrame()
+
+
+    for i in range(cv_folds):
+        min_perc = i*cutoff
+        max_perc = min_perc + cutoff
+        train_cutoff = min_perc + (0.7 * cutoff)
+
+        cv_train = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= min_perc) & (col("DEP_DATETIME_LAG_percent") < train_cutoff))\
+                                .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
+        
+        cv_val = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= train_cutoff) & (col("DEP_DATETIME_LAG_percent") < max_perc))\
+                              .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
+        
+        rf = RandomForestClassifier(labelCol="DEP_DEL15", featuresCol="features", numTrees = input_numTrees, maxDepth = input_maxDepth, maxBins = input_maxBins)
+        
+        rfModel = rf.fit(cv_train)
+        
+        gbt = GBTClassifier(labelCol = 'DEP_DEL15', featuresCol = 'features', input_maxIter, input_maxDepth, input_maxBins, input_stepSize)
+        gbt_model = gbt.fit(cv_train)
+
+        currentYearPredictions = gbt_model.transform(cv_val).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
+
+        for threshold in thresholds_list:
+
+            thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
+                                                         .withColumn("prediction", (col('predicted_probability') > threshold).cast('double') )
+
+            currentYearMetrics = testModelPerformance(thresholdPredictions)
+            stats = pd.DataFrame([currentYearMetrics], columns=['val_Precision','val_Recall','val_F0.5','val_F1','val_Accuracy'])
+            stats['cv_fold'] = i
+            stats['maxIter'] = input_maxIter
+            stats['maxDepth'] = input_maxDepth
+            stats['maxBins'] = input_maxBins
+            stats['stepSize'] = input_stepSize
+            stats['threshold'] = threshold
+            stats['trained_model'] = gbt_model
+
+            cv_stats = pd.concat([cv_stats,stats],axis=0)
+            
+    return cv_stats
+
+
+# COMMAND ----------
+
+cv_stats = runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, cv_folds=4, input_numTrees = 20, input_maxDepth = 5, input_maxBins = 32, input_stepSize = 0.1, thresholds_list = [0.5])
+
+cv_stats
+
+# COMMAND ----------
+
+feature_importances = getFeatureImportance(feature_names, list(cv_stats.iloc[0]['trained_model'].coefficients))
+feature_importances.sort_values('importance', ascending=False)
+
+# COMMAND ----------
+
+test_results = predictTestData(cv_stats, preppedTest)
+test_results
+
+# COMMAND ----------
+
+# Hyperparameter Tuning Parameter Grid for Random Forest
+# Each CV takes about 30 minutes.
+
+numTreesGrid = [10, 25, 50]
+maxDepthGrid = [4, 8, 16]
+maxBinsGrid = [32, 64, 128]
+stepSizeGrid = [0.1]
+thresholds = [0.5, 0.6, 0.7, 0.8]
+
+#numTreesGrid = [10, 25]
+#maxDepthGrid = [4, 8]
+#maxBinsGrid = [32, 64]
+#thresholds = [0.5]
+
+grid_search = pd.DataFrame()
+
+for numTrees in numTreesGrid:
+    print(f"! numTrees = {numTrees}")
+    for maxDepth in maxDepthGrid:
+        print(f"! maxDepth = {maxDepth}")
+        for maxBins in maxBinsGrid:
+            print(f"! maxBins = {maxBins}")
+            for stepSize in stepSizeGrid:
+                print(f"! stepSize = {stepSize}")
+            try:
+                cv_stats = runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, cv_folds, numTrees, maxDepth, maxBins, stepSize, thresholds_list = [0.5])
+                test_results = predictTestData(cv_stats, preppedTest)
+
+                grid_search = pd.concat([grid_search,test_results],axis=0)
+            except:
+                pass
+            
+print("! Job Finished!")
+print(f"! {getCurrentDateTimeFormatted()}\n")
+
+grid_search
+
+# COMMAND ----------
+
+grid_search
+
+# COMMAND ----------
+
+grid_spark_DF = spark.createDataFrame(grid_search.drop(columns=['trained_model']))
+display(grid_spark_DF)
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC # Workspace
+
+# COMMAND ----------
+
+
+categoricals = ['QUARTER','MONTH','DAY_OF_WEEK','OP_UNIQUE_CARRIER',
+                'DEP_HOUR','AssumedEffect_Text','airline_type',
+                'is_prev_delayed','Blowing_Snow','Freezing_Rain','Rain','Snow','Thunder']
+
+numerics = ['DISTANCE','ELEVATION','HourlyAltimeterSetting','HourlyDewPointTemperature',
+            'HourlyWetBulbTemperature','HourlyDryBulbTemperature','HourlyPrecipitation',
+            'HourlyStationPressure','HourlySeaLevelPressure','HourlyRelativeHumidity',
+            'HourlyVisibility','HourlyWindSpeed','perc_delay',
+            'pagerank']
+            
+for feature in categoricals:
+    print(preppedTrain.filter(col(feature).isNull()).count())
+
+# COMMAND ----------
+
+for feature in numerics:
+    print(preppedTrain.filter(col(feature).isNull()).count())
 
 # COMMAND ----------
 
