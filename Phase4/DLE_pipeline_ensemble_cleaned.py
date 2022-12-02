@@ -271,7 +271,7 @@ def predictTestData(cv_stats, dataFrameInput, featureCol='features'):
 
         currentYearPredictions = best_model['trained_model'].transform(dataset).withColumn("predicted_probability", extract_prob_udf(col("probability")))
         thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
-                                                             .withColumn("prediction", (col('predicted_probability') > best_model['threshold']).cast('double') )
+                                                     .withColumn("prediction", (col('predicted_probability') > best_model['threshold']).cast('double') )
 
 #         thresholdPredictions = thresholdPredictions.withColumn("row_id", F.monotonically_increasing_id()).cache()
 
@@ -285,6 +285,9 @@ def predictTestData(cv_stats, dataFrameInput, featureCol='features'):
         test_stats = pd.concat([test_stats, stats], axis=1)
         
     final_stats = pd.concat([stats, cv_stats], axis=1)
+    
+    #clean up cachced DFs
+    dataset.unpersist()
     
     return final_stats
   
@@ -351,6 +354,12 @@ def runBlockingTimeSeriesCrossValidation(preppedTrain, featureCol='features', cv
 
             cv_stats = pd.concat([cv_stats,stats],axis=0)
 
+    #clean up cachced DFs
+    cv_train.unpersist()
+    cv_val.unpersist()
+    currentYearPredictions.unpersist()
+    thresholdPredictions.unpersist()
+    
     return cv_stats
 
 
