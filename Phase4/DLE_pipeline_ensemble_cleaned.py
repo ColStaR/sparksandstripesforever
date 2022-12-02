@@ -152,21 +152,23 @@ def buildPipeline(trainDF, categoricals, numerics, Y="DEP_DEL15", oneHot=True, i
     pipelineModel = pipeline.fit(trainDF)
     
     return pipelineModel
-
-
+    
 def getFeatureNames(preppedPipelineModel, featureCol='features'):
     # Get feature names for use later 
     meta = [f.metadata 
         for f in preppedPipelineModel.schema.fields 
         if f.name == featureCol][0]
-
-    # access feature name and index
-    feature_names = meta['ml_attr']['attrs']['binary'] + meta['ml_attr']['attrs']['numeric']
-    # feature_names = pd.DataFrame(feature_names)
+    
+    try:
+        # access feature name and index
+        feature_names = meta['ml_attr']['attrs']['binary'] + meta['ml_attr']['attrs']['numeric']
+        # feature_names = pd.DataFrame(feature_names)
+    except:
+        feature_names = meta['ml_attr']['attrs']['nominal'] + meta['ml_attr']['attrs']['numeric']
+        
     feature_names = [feature['name'] for feature in feature_names]
     
     return feature_names
-
 
 # COMMAND ----------
 
@@ -215,7 +217,13 @@ def extract_prob(v):
         return None
 extract_prob_udf = F.udf(extract_prob, DoubleType())
 
-
+def FScore(beta, precision, recall):
+    if precision + recall == 0:
+        F = 0
+    else:
+        F = (1 + beta**2) * (precision * recall) / ((beta**2 * precision) + recall)
+    return F
+FScore_udf = F.udf(FScore, DoubleType())
     
 def testModelPerformance(predictions, y='DEP_DEL15'):
     
@@ -283,8 +291,8 @@ def predictTestData(cv_stats, dataFrameInput, featureCol='features'):
         currentYearMetrics = testModelPerformance(thresholdPredictions)
         stats = pd.DataFrame([currentYearMetrics], columns=['test_Precision','test_Recall','test_F0.5','test_F1','test_Accuracy'])
         test_stats = pd.concat([test_stats, stats], axis=0)
-        
-    final_stats = pd.concat([stats.reset_index(drop=True), cv_stats.reset_index(drop=True)], axis=1)
+
+    final_stats = pd.concat([test_stats.reset_index(drop=True), cv_stats.reset_index(drop=True)], axis=1)
     
     #clean up cachced DFs
     dataset.unpersist()
@@ -309,6 +317,13 @@ def getFeatureNames(preppedPipelineModel, featureCol='features'):
     
     return feature_names
 
+
+def getFeatureImportance(featureNames, coefficients):
+    
+    featureImportances = pd.DataFrame(zip(featureNames,coefficients), columns=['featureName','coefficient'])
+    featureImportances['importance'] = featureImportances['coefficient'].abs()
+    
+    return featureImportances.sort_values('importance', ascending=False)
 
 # COMMAND ----------
 
@@ -425,8 +440,27 @@ grid_search
 
 # COMMAND ----------
 
-test_results = predictTestData(grid_search, preppedTest)
+grid_search[grid_search['val_F0.5']>0]
+
+# COMMAND ----------
+
+test_results = predictTestData(grid_search[grid_search['val_F0.5']>0], preppedTest)
 test_results
+
+# COMMAND ----------
+
+agg_results = test_results.drop(columns=['trained_model']).groupby(['regParam','elasticNetParam','maxIter','threshold']).mean()
+
+rP, eNP, mI, thresh = agg_results[agg_results['val_F0.5'] == agg_results['val_F0.5'].max()].index[0]
+
+best_model = test_results[(test_results['regParam']==rP) & 
+                               (test_results['elasticNetParam']==eNP) & 
+                               (test_results['maxIter']==mI) & 
+                               (test_results['threshold']==thresh)]
+
+best_model_save = best_model[best_model['val_F0.5']==best_model['val_F0.5'].max()].iloc[0]['trained_model']
+
+best_model
 
 # COMMAND ----------
 
@@ -435,25 +469,13 @@ grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/logistic_regression_g
 
 # COMMAND ----------
 
-preds = grid_search[grid_search['val_F0.5']==grid_search['val_F0.5'].max()
-           ].iloc[0]['trained_model'].transform(preppedTest).withColumn("predicted_probability", extract_prob_udf(col("probability")))
+preds = best_model_save.transform(preppedTest).withColumn("predicted_probability", extract_prob_udf(col("probability")))
 
 preds.write.mode('overwrite').parquet(f"{blob_url}/best_LR_predictions")
 
 # COMMAND ----------
 
-# import joblib
-
-# joblib.dump(test_results, 'logistic_regression_grid_models_120122.pkl')
-
-# COMMAND ----------
-
-# test_results.loc[test_results['val_F0.5'] == test_results['val_F0.5'].max(), 'trained_model']
-
-# COMMAND ----------
-
-feature_importances = getFeatureImportance(feature_names,grid_search[grid_search['val_F0.5']==grid_search['val_F0.5'].max()
-                                                                    ].iloc[0]['trained_model'].coefficients)
+feature_importances = getFeatureImportance(feature_names, best_model_save.coefficients)
 feature_importances
 
 # COMMAND ----------
@@ -462,7 +484,57 @@ feature_importances.head(50)
 
 # COMMAND ----------
 
-feature_importances.to_parquet(f"{blob_url}/logistic_regression_grid_CV_120122")
+featureImportanceDF = spark.createDataFrame(feature_importances)
+featureImportanceDF.write.mode('overwrite').parquet(f"{blob_url}/best_LR_feature_importance")
+
+# COMMAND ----------
+
+import matplotlib.pyplot as plt
+plt.figure(figsize=(10,10))
+plt.plot([0, 1], [0, 1], 'r--')
+plt.plot(best_model_save.summary.roc.select('FPR').collect(),
+         best_model_save.summary.roc.select('TPR').collect())
+plt.xlabel('FPR')
+plt.ylabel('TPR')
+plt.title(f'ROC, with AUC={best_model_save.summary.areaUnderROC}')
+plt.show()
+
+
+# COMMAND ----------
+
+# maxFMeasure = fScoreThresholds.groupBy().max('F05').select('max(F05)').head()
+# bestThreshold = fScoreThresholds.where(col('F05') == maxFMeasure['max(F05)']) \
+#     .select('threshold').head()['threshold']
+
+# bestThreshold
+
+fScoreThresholds.agg({"F05": "max"}).show()
+
+# COMMAND ----------
+
+fScoreThresholds = best_model_save.summary.precisionByThreshold.join(best_model_save.summary.recallByThreshold, on='threshold')\
+                                                               .withColumn('F05', FScore_udf(F.lit(0.5), col("precision"), col('recall')))
+
+thresh = fScoreThresholds.select('threshold').collect()
+
+# plt.figure(figsize=(15,10))
+plt.plot(thresh, fScoreThresholds.select('F05').collect(),color='red')
+plt.plot(thresh, fScoreThresholds.select('precision').collect(), color='green')
+plt.plot(thresh, fScoreThresholds.select('recall').collect(), color='blue')
+plt.legend(['F0.5 Score', 'Precision','Recall'], bbox_to_anchor=(1.05, 1))
+plt.xlabel('Threshold')
+plt.ylabel('Score')
+plt.title(f'Scores By Threshold (Max F0.5 = {})')
+plt.show()
+
+# COMMAND ----------
+
+best_model_save.summaryplt.figure(figsize=(8,5))
+plt.plot(best_model_save.summary.objectiveHistory)
+plt.xlabel('Iteration')
+plt.ylabel('Loss')
+plt.title('Loss Curve')
+plt.show()
 
 # COMMAND ----------
 
