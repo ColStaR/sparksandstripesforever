@@ -144,8 +144,8 @@ print("**Loading Data Frames")
 # df_joined_data_all = spark.read.parquet(f"{blob_url}/joined_data_all")
 # display(df_joined_data_all)
 
-df_joined_data_all_with_efeatures = spark.read.parquet(f"{blob_url}/joined_all_with_efeatures_v2_No2015")
-df_joined_data_all_with_efeatures = df_joined_data_all_with_efeatures.withColumn("pagerank",df_joined_data_all_with_efeatures.pagerank.cast('double'))
+df_joined_data_all_with_efeatures = spark.read.parquet(f"{blob_url}/joined_all_with_efeatures_Downsampled")
+# df_joined_data_all_with_efeatures = df_joined_data_all_with_efeatures.withColumn("pagerank",df_joined_data_all_with_efeatures.pagerank.cast('double'))
 display(df_joined_data_all_with_efeatures)
 
 #df_joined_data_2y = df_joined_data_all.filter(col("YEAR") <= 2016).cache()
@@ -188,7 +188,9 @@ print("**Data Frames Loaded")
 
 # Convert categorical features to One Hot Encoding
 
-categoricalColumns = ['ORIGIN', 'QUARTER', 'MONTH', 'DAY_OF_MONTH', 'DAY_OF_WEEK', 'FL_DATE', 'OP_UNIQUE_CARRIER', 'TAIL_NUM', 'OP_CARRIER_FL_NUM', 'ORIGIN_AIRPORT_SEQ_ID', 'ORIGIN_STATE_ABR',  'DEST_AIRPORT_SEQ_ID', 'DEST_STATE_ABR', 'CRS_DEP_TIME', 'YEAR', 'AssumedEffect', 'is_prev_delayed'] 
+categoricalColumns = ['ORIGIN','QUARTER','MONTH','DAY_OF_WEEK','OP_UNIQUE_CARRIER','ORIGIN_STATE_ABR',
+                'DEST','DEST_STATE_ABR','DEP_HOUR','AssumedEffect_Text','airline_type',
+                'is_prev_delayed','Blowing_Snow','Freezing_Rain','Rain','Snow','Thunder']
 
 # Could not use , 'flight_id'. Leads to buffer overflow error.
 # org.apache.spark.SparkException: Job aborted due to stage failure: Task 2 in stage 57.0 failed 4 times, most recent failure: Lost task 2.3 in stage 57.0 (TID 280) (10.139.64.6 executor 0): org.apache.spark.SparkException: Kryo serialization failed: Buffer overflow. Available: 0, required: 31
@@ -216,7 +218,12 @@ for categoricalCol in categoricalColumns:
 # Create vectors for numeric and categorical variables
 
 # Join v2 columns:
-numericCols = ['CRS_ELAPSED_TIME', 'DISTANCE','ELEVATION', 'HourlyAltimeterSetting', 'HourlyDewPointTemperature', 'HourlyWetBulbTemperature', 'HourlyDryBulbTemperature', 'HourlyPrecipitation', 'HourlyStationPressure', 'HourlySeaLevelPressure', 'HourlyRelativeHumidity', 'HourlyVisibility', 'HourlyWindSpeed', 'perc_delay', 'pagerank']
+numericCols = ['DISTANCE','ELEVATION','HourlyAltimeterSetting','HourlyDewPointTemperature',
+            'HourlyWetBulbTemperature','HourlyDryBulbTemperature','HourlyPrecipitation',
+            'HourlyStationPressure','HourlySeaLevelPressure','HourlyRelativeHumidity',
+            'HourlyVisibility','HourlyWindSpeed','perc_delay',
+            'pagerank']
+
 # Features Not Included: 'DEP_DATETIME','DATE', 'HourlyWindGustSpeed', 'MonthlyMeanTemperature', 'MonthlyMaximumTemperature', 'MonthlyGreatestSnowDepth', 'MonthlyGreatestSnowfall', 'MonthlyTotalSnowfall', 'MonthlyTotalLiquidPrecipitation', 'MonthlyMinimumTemperature', 'DATE_HOUR', 'time_zone_id', 'UTC_DEP_DATETIME_LAG', 'UTC_DEP_DATETIME', 'HourlyPressureChange', 'distance_to_neighbor', 'neighbor_lat', 'neighbor_lon'
 
 # scaler = StandardScaler(inputCol=numericCols, outputCol="scaledFeatures", withStd=True, withMean=False)
@@ -253,19 +260,15 @@ partialPipeline = Pipeline().setStages(stages)
 pipelineModel = partialPipeline.fit(df_joined_data_all_with_efeatures)
 preppedDataDF = pipelineModel.transform(df_joined_data_all_with_efeatures).cache()
 
-# Apply pipeline to Pre-2021
-#pipelineModel_pre2021 = partialPipeline.fit(df_joined_data_pre2021)
-#preppedDataDF_pre2021 = pipelineModel_pre2021.transform(df_joined_data_pre2021)
+# Get feature names to get feature importances later
+meta = [f.metadata 
+    for f in preppedDataDF.schema.fields 
+    if f.name == 'features'][0]
 
-# Apply pipeline to 2021
-#pipelineModel_2021 = partialPipeline.fit(df_joined_data_2021)
-#preppedDataDF_2021 = pipelineModel_2021.transform(df_joined_data_2021)
-
-#display(preppedDataDF)
-
-# COMMAND ----------
-
-#display(preppedDataDF)
+# access feature name and index
+feature_names = meta['ml_attr']['attrs']['binary'] + meta['ml_attr']['attrs']['numeric']
+# feature_names = pd.DataFrame(feature_names)
+feature_names = [feature['name'] for feature in feature_names]
 
 # COMMAND ----------
 
@@ -356,45 +359,6 @@ def testModelPerformance(predictions):
     accuracy = (TP + TN) / (TP + TN + FP + FN)
     
     return precision, recall, F05, F1, accuracy
-  
-
-def downsampleYearly(dataFrameInput):
-    
-    ###### TO DO: Might be able to extract distinct years without converting to rdd
-    listOfYears = dataFrameInput.select("YEAR").distinct().filter(col("YEAR") != 2021).rdd.flatMap(list).collect()
-    
-    downsampledDF = None
-
-    for currentYear in listOfYears:
-
-        print(f"Processing Year: {currentYear}")
-        print(f"@ {getCurrentDateTimeFormatted()}")
-        currentYearDF = dataFrameInput.filter(col("YEAR") == currentYear).cache()
-
-        # Upscale the data such that there are roughly equal amounts of rows where DEP_DEL15 == 0 and DEP_DEL15 == 1, which aids in training.
-
-        ###### TO DO: Do downsampling outside of function first, then never have to run this again
-        currentYearDF_downsampling_0 = currentYearDF.filter(col("DEP_DEL15") == 0)
-        print(f"@- currentYearDF_downsampling_0.count() = {currentYearDF_downsampling_0.count()}")
-        currentYearDF_downsampling_1 = currentYearDF.filter(col("DEP_DEL15") == 1)
-        print(f"@- currentYearDF_downsampling_1.count() = {currentYearDF_downsampling_1.count()}")
-
-        downsampling_ratio = (currentYearDF_downsampling_1.count() / currentYearDF_downsampling_0.count())
-
-        currentYearDF_downsampling_append = currentYearDF_downsampling_0.sample(fraction = downsampling_ratio, withReplacement = False, seed = 261)
-
-        currentYearDF_downsampled = currentYearDF_downsampling_1.unionAll(currentYearDF_downsampling_append)
-        print(f"@- currentYearDF_downsampled.count() = {currentYearDF_downsampled.count()}")
-                
-        if downsampledDF == None:
-            downsampledDF = currentYearDF_downsampled
-            print(f"@- downsampledDF.count() = {downsampledDF.count()}")
-        else:
-            downsampledDF = downsampledDF.union(currentYearDF_downsampled).cache()
-            print(f"@- downsampledDF.count() = {downsampledDF.count()}")
-            
-    return downsampledDF, listOfYears
-    
 
 # COMMAND ----------
 
@@ -467,49 +431,95 @@ def runBlockingTimeSeriesCrossValidation(dataFrameInput, listOfYears = [2015, 20
             
     return cv_stats
 
-###### THIS WILL NOT RUN - WORK IN PROGRESS
 def predictTestData(cv_stats, dataFrameInput):
     
     print(f"@ Starting Test Evaluation")
     print(f"@ {getCurrentDateTimeFormatted()}")
     # Prepare 2021 Test Data
-    currentYearDF = dataFrameInput.filter(col("YEAR") == 2021).cache()
-    preppedDF = currentYearDF.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
-    selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
-    dataset = preppedDF.select(selectedcols).cache()
+    selectedcols = ["DEP_DEL15", "YEAR", "features"]
+    dataset = dataFrameInput.select(selectedcols).cache()
     
-    ensemble_predictions = None
+    test_stats = pd.DataFrame()
     
     for row in range(len(cv_stats)):
         best_model = cv_stats.sort_values("val_F0.5", ascending=False).iloc[row]
         best_model_stats = cv_stats.sort_values("val_F0.5", ascending=False).iloc[[row]]
 
-        currentYearPredictions = runLogisticRegression(best_model['trained_model'], dataset
-                                                      ).withColumn("predicted_probability", extract_prob_udf(col("probability")))
+        currentYearPredictions = best_model['trained_model'].transform(dataset).withColumn("predicted_probability", extract_prob_udf(col("probability")))
         thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
                                                              .withColumn("prediction", (col('predicted_probability') > best_model['threshold']).cast('double') )
         
-        thresholdPredictions = thresholdPredictions.withColumn("row_id", monotonically_increasing_id())
+        thresholdPredictions = thresholdPredictions.withColumn("row_id", F.monotonically_increasing_id())
         
-        if ensemble_predictions == None:
-            ensemble_predictions = thresholdPredictions
-        else:
-            ensemble_predictions = ensemble_predictions.join(thresholdPredictions, ("row_id"))
-
+#         if ensemble_predictions == None:
+#             ensemble_predictions = thresholdPredictions
+#         else:
+#             ensemble_predictions = ensemble_predictions.join(thresholdPredictions, ("row_id"))
     
-    currentYearMetrics = testModelPerformance(thresholdPredictions)
-    stats = pd.DataFrame([currentYearMetrics], columns=['test_Precision','test_Recall','test_F0.5','test_F1','test_Accuracy'])
-    stats = pd.concat([stats, best_model_stats], axis=1)
+        currentYearMetrics = testModelPerformance(thresholdPredictions)
+        stats = pd.DataFrame([currentYearMetrics], columns=['test_Precision','test_Recall','test_F0.5','test_F1','test_Accuracy'])
+        test_stats = pd.concat([test_stats, stats], axis=1)
+        
+    final_stats = pd.concat([stats, cv_stats], axis=1)
     
-    return stats
-
-
+    return final_stats
 
 # COMMAND ----------
 
-# Down sample the data prior to training
-downsampledDF, listOfYears = downsampleYearly(preppedDataDF)
-downsampledDF.cache()
+cv_stats = runBlockingTimeSeriesCrossValidation(preppedDataDF, [2016,2017,2018,2019,2020], 0, 0, 10, thresholds_list = [0.5])
+# cv_stats.iloc[0]['trained_model'].coefficients
+cv_stats
+
+# COMMAND ----------
+
+# Prepare 2021 Test Data
+currentYearDF = preppedDataDF.filter(col("YEAR") == 2021).cache()
+preppedTestDF = currentYearDF.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
+selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
+dataset = preppedTestDF.select(selectedcols).cache()
+
+ensemble_predictions = None
+
+for row in range(len(cv_stats)):
+    best_model = cv_stats.sort_values("val_F0.5", ascending=False).iloc[row]
+    best_model_stats = cv_stats.sort_values("val_F0.5", ascending=False).iloc[[row]]
+
+    currentYearPredictions = runLogisticRegression(best_model['trained_model'], dataset
+                                                  ).withColumn(f"predicted_probability_{row}", extract_prob_udf(col("probability")))
+    thresholdPredictions = currentYearPredictions.select('DEP_DEL15',f"predicted_probability_{row}")\
+                                                 .withColumn("prediction", (col(f"predicted_probability_{row}") > best_model['threshold']).cast('double') )\
+                                                 .withColumnRenamed('prediction',f'prediction_{row}')
+
+    thresholdPredictions = thresholdPredictions.withColumn("row_id", F.monotonically_increasing_id())
+
+    if ensemble_predictions == None:
+        ensemble_predictions = thresholdPredictions
+    else:
+        ensemble_predictions = ensemble_predictions.join(thresholdPredictions.select('row_id',f"predicted_probability_{row}",f'prediction_{row}'), ("row_id"))
+
+
+probability_columns = [column for column in ensemble_predictions.columns if 'prob' in column]
+prediction_columns = [column for column in ensemble_predictions.columns if 'prediction' in column]
+
+ensemble_predictions = ensemble_predictions.withColumn('probability', F.expr( '+'.join(probability_columns) ) / F.lit(len(probability_columns)))\
+                                           .withColumn('prediction', F.expr( '+'.join(prediction_columns) ) / F.lit(len(prediction_columns)))
+
+# display(ensemble_predictions)
+currentYearMetrics = testModelPerformance(ensemble_predictions)
+print(currentYearMetrics)
+# stats = pd.DataFrame([currentYearMetrics], columns=['test_Precision','test_Recall','test_F0.5','test_F1','test_Accuracy'])
+# stats = pd.concat([stats, best_model_stats], axis=1)
+
+# COMMAND ----------
+
+probability_columns = [column for column in ensemble_predictions.columns if 'prob' in column]
+prediction_columns = [column for column in ensemble_predictions.columns if 'prediction' in column]
+
+ensemble_predictions = ensemble_predictions.withColumn('average_probability', F.expr( '+'.join(probability_columns) ) / F.lit(len(probability_columns)))\
+                    .withColumn('prediction', (F.expr( '+'.join(prediction_columns) ) / F.lit(len(prediction_columns) ) > 0.5).cast('double') )
+
+currentYearMetrics = testModelPerformance(ensemble_predictions)
+print(currentYearMetrics)
 
 # COMMAND ----------
 

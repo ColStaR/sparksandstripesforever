@@ -39,7 +39,7 @@ from sklearn import datasets
 from sklearn import svm
 from joblibspark import register_spark
 
-from pyspark.ml.classification import GBTClassifier
+from pyspark.ml.classification import RandomForestClassifier
 
 import pandas as pd
 import numpy as np
@@ -152,8 +152,7 @@ def buildPipeline(trainDF, categoricals, numerics, Y="DEP_DEL15", oneHot=True, i
     pipelineModel = pipeline.fit(trainDF)
     
     return pipelineModel
-
-
+    
 def getFeatureNames(preppedPipelineModel, featureCol='features'):
     # Get feature names for use later 
     meta = [f.metadata 
@@ -170,7 +169,6 @@ def getFeatureNames(preppedPipelineModel, featureCol='features'):
     feature_names = [feature['name'] for feature in feature_names]
     
     return feature_names
-
 
 # COMMAND ----------
 
@@ -189,7 +187,7 @@ numerics = ['DISTANCE','ELEVATION','HourlyAltimeterSetting','HourlyDewPointTempe
 # COMMAND ----------
 
 pipelineModel = buildPipeline(df_joined_data_all_with_efeatures.filter( col('YEAR') != 2021), 
-                              categoricals, numerics, Y="DEP_DEL15", oneHot=False, imputer=False, scaler=False)
+                              categoricals, numerics, Y="DEP_DEL15", oneHot=True, imputer=False, scaler=False)
 
 preppedData = pipelineModel.transform(df_joined_data_all_with_efeatures)
 # preppedValid = pipelineModel.transform(valid).cache()
@@ -219,7 +217,13 @@ def extract_prob(v):
         return None
 extract_prob_udf = F.udf(extract_prob, DoubleType())
 
-
+def FScore(beta, precision, recall):
+    if precision + recall == 0:
+        F = 0
+    else:
+        F = (1 + beta**2) * (precision * recall) / ((beta**2 * precision) + recall)
+    return F
+FScore_udf = F.udf(FScore, DoubleType())
     
 def testModelPerformance(predictions, y='DEP_DEL15'):
     
@@ -286,9 +290,9 @@ def predictTestData(cv_stats, dataFrameInput, featureCol='features'):
 
         currentYearMetrics = testModelPerformance(thresholdPredictions)
         stats = pd.DataFrame([currentYearMetrics], columns=['test_Precision','test_Recall','test_F0.5','test_F1','test_Accuracy'])
-        test_stats = pd.concat([test_stats, stats], axis=1)
-        
-    final_stats = pd.concat([stats.reset_index(drop=True), cv_stats.reset_index(drop=True)], axis=1)
+        test_stats = pd.concat([test_stats, stats], axis=0)
+
+    final_stats = pd.concat([test_stats.reset_index(drop=True), cv_stats.reset_index(drop=True)], axis=1)
     
     #clean up cachced DFs
     dataset.unpersist()
@@ -296,13 +300,30 @@ def predictTestData(cv_stats, dataFrameInput, featureCol='features'):
     return final_stats
   
     
+def getFeatureNames(preppedPipelineModel, featureCol='features'):
+    # Get feature names for use later 
+    meta = [f.metadata 
+        for f in preppedPipelineModel.schema.fields 
+        if f.name == featureCol][0]
+    
+    try:
+        # access feature name and index
+        feature_names = meta['ml_attr']['attrs']['binary'] + meta['ml_attr']['attrs']['numeric']
+        # feature_names = pd.DataFrame(feature_names)
+    except:
+        feature_names = meta['ml_attr']['attrs']['nominal'] + meta['ml_attr']['attrs']['numeric']
+        
+    feature_names = [feature['name'] for feature in feature_names]
+    
+    return feature_names
+
+
 def getFeatureImportance(featureNames, coefficients):
     
     featureImportances = pd.DataFrame(zip(featureNames,coefficients), columns=['featureName','coefficient'])
     featureImportances['importance'] = featureImportances['coefficient'].abs()
     
-    return featureImportances
-
+    return featureImportances.sort_values('importance', ascending=False)
 
 # COMMAND ----------
 
@@ -408,39 +429,110 @@ for maxIter in maxIterGrid:
                 cv_stats = runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_input=regParam, 
                                                                 elasticNetParam_input=elasticNetParam, maxIter_input=maxIter, 
                                                                 thresholds_list = thresholds)
-#                 test_results = predictTestData(cv_stats, preppedTest)
 
                 grid_search = pd.concat([grid_search,cv_stats],axis=0)
             except:
                 print('Error, continuing to next iteration')
                 continue
-            
-test_results = predictTestData(grid_search, preppedTest)
 
-print("~ Job Finished!")
-print(f"~ {getCurrentDateTimeFormatted()}\n")
 
+grid_search
+
+# COMMAND ----------
+
+grid_search[grid_search['val_F0.5']>0]
+
+# COMMAND ----------
+
+test_results = predictTestData(grid_search[grid_search['val_F0.5']>0], preppedTest)
 test_results
 
 # COMMAND ----------
 
 grid_spark_DF = spark.createDataFrame(test_results.drop(columns=['trained_model']))
-grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/logistic_regression_grid_CV_120122")
+grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/logistic_regression_grid_CV_120222")
 
 # COMMAND ----------
 
-import joblib
+agg_results = test_results.drop(columns=['trained_model']).groupby(['regParam','elasticNetParam','maxIter','threshold']).mean()
 
-joblib.dump(test_results, 'logistic_regression_grid_models_120122.pkl')
+rP, eNP, mI, thresh = agg_results[agg_results['val_F0.5'] == agg_results['val_F0.5'].max()].index[0]
+
+best_model = test_results[(test_results['regParam']==rP) & 
+                               (test_results['elasticNetParam']==eNP) & 
+                               (test_results['maxIter']==mI) & 
+                               (test_results['threshold']==thresh)]
+
+best_model_save = best_model[best_model['val_F0.5']==best_model['val_F0.5'].max()].iloc[0]['trained_model']
+
+best_model
 
 # COMMAND ----------
 
-test_results.loc[test_results['val_F0.5'] == test_results['val_F0.5'].max(), 'trained_model']
+preds = best_model_save.transform(preppedTest).withColumn("predicted_probability", extract_prob_udf(col("probability")))
+
+preds.write.mode('overwrite').parquet(f"{blob_url}/best_LR_predictions")
 
 # COMMAND ----------
 
-feature_importances = getFeatureImportance(feature_names,)
+feature_importances = getFeatureImportance(feature_names, best_model_save.coefficients)
 feature_importances
+
+# COMMAND ----------
+
+featureImportanceDF = spark.createDataFrame(feature_importances)
+featureImportanceDF.write.mode('overwrite').parquet(f"{blob_url}/best_LR_feature_importance")
+
+feature_importances.head(50)
+
+# COMMAND ----------
+
+import matplotlib.pyplot as plt
+plt.figure(figsize=(10,10))
+plt.plot([0, 1], [0, 1], 'r--')
+plt.plot(best_model_save.summary.roc.select('FPR').collect(),
+         best_model_save.summary.roc.select('TPR').collect())
+plt.xlabel('FPR')
+plt.ylabel('TPR')
+plt.title(f'ROC, with AUC={best_model_save.summary.areaUnderROC}')
+plt.show()
+
+
+# COMMAND ----------
+
+# maxFMeasure = fScoreThresholds.groupBy().max('F05').select('max(F05)').head()
+# bestThreshold = fScoreThresholds.where(col('F05') == maxFMeasure['max(F05)']) \
+#     .select('threshold').head()['threshold']
+
+# bestThreshold
+
+fScoreThresholds.agg({"F05": "max"}).show()
+
+# COMMAND ----------
+
+fScoreThresholds = best_model_save.summary.precisionByThreshold.join(best_model_save.summary.recallByThreshold, on='threshold')\
+                                                               .withColumn('F05', FScore_udf(F.lit(0.5), col("precision"), col('recall')))
+
+thresh = fScoreThresholds.select('threshold').collect()
+
+# plt.figure(figsize=(15,10))
+plt.plot(thresh, fScoreThresholds.select('F05').collect(),color='red')
+plt.plot(thresh, fScoreThresholds.select('precision').collect(), color='green')
+plt.plot(thresh, fScoreThresholds.select('recall').collect(), color='blue')
+plt.legend(['F0.5 Score', 'Precision','Recall'], bbox_to_anchor=(1.05, 1))
+plt.xlabel('Threshold')
+plt.ylabel('Score')
+plt.title(f'Scores By Threshold')
+plt.show()
+
+# COMMAND ----------
+
+best_model_save.summaryplt.figure(figsize=(8,5))
+plt.plot(best_model_save.summary.objectiveHistory)
+plt.xlabel('Iteration')
+plt.ylabel('Loss')
+plt.title('Loss Curve')
+plt.show()
 
 # COMMAND ----------
 
@@ -450,10 +542,10 @@ feature_importances
 
 # COMMAND ----------
 
-def runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, featureCol='features', cv_folds=4, input_maxIter = 20, input_maxDepth = 5, input_maxBins = 32, input_stepSize = 0.1, thresholds_list = [0.5]):
+def runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, cv_folds=4, input_maxIter = 20, input_maxDepth = 5, input_maxBins = 32, input_stepSize = 0.1, thresholds_list = [0.5]):
     """
     Function which performs blocking time series cross validation
-    Takes the pipeline-prepped DF as an input, with options for number of desired folds and GBT parameters
+    Takes the pipeline-prepped DF as an input, with options for number of desired folds and logistic regression parameters
     Returns a pandas dataframe of validation performance metrics and the corresponding models
     """
     
@@ -463,31 +555,25 @@ def runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, featureCol='features'
 
 
     for i in range(cv_folds):
-        
-        print(f"! Running fold {i+1} of {cv_folds}")
-        print(f"@ {getCurrentDateTimeFormatted()}")
         min_perc = i*cutoff
         max_perc = min_perc + cutoff
         train_cutoff = min_perc + (0.7 * cutoff)
-        
+
         cv_train = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= min_perc) & (col("DEP_DATETIME_LAG_percent") < train_cutoff))\
-                                .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", featureCol]).cache()
+                                .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
         
         cv_val = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= train_cutoff) & (col("DEP_DATETIME_LAG_percent") < max_perc))\
-                              .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", featureCol]).cache()
+                              .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
         
-        gbt = GBTClassifier(labelCol='DEP_DEL15', featuresCol='features', maxIter=input_maxIter, 
-                            maxDepth=input_maxDepth, maxBins=input_maxBins, stepSize=input_stepSize)
+        gbt = GBTClassifier(labelCol = 'DEP_DEL15', featuresCol = 'features', input_maxIter, input_maxDepth, input_maxBins, input_stepSize)
         gbt_model = gbt.fit(cv_train)
 
         currentYearPredictions = gbt_model.transform(cv_val).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
-        
-        print(f"!! Starting threshold search")
+
         for threshold in thresholds_list:
-#             print(f"! Testing threshold {threshold}")
 
             thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
-                                                         .withColumn("prediction", (col('predicted_probability') > threshold).cast('double')).cache()
+                                                         .withColumn("prediction", (col('predicted_probability') > threshold).cast('double') )
 
             currentYearMetrics = testModelPerformance(thresholdPredictions)
             stats = pd.DataFrame([currentYearMetrics], columns=['val_Precision','val_Recall','val_F0.5','val_F1','val_Accuracy'])
@@ -500,18 +586,9 @@ def runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, featureCol='features'
             stats['trained_model'] = gbt_model
 
             cv_stats = pd.concat([cv_stats,stats],axis=0)
-    #clean up cachced DFs
-    cv_train.unpersist()
-    cv_val.unpersist()
-    currentYearPredictions.unpersist()
-    thresholdPredictions.unpersist()
-    
+            
     return cv_stats
 
-
-# COMMAND ----------
-
-cv_stats
 
 # COMMAND ----------
 
@@ -535,14 +612,14 @@ for maxIter in maxIterGrid:
             print(f"! maxBins = {maxBins}")
             for maxDepth in maxDepthGrid:
                 print(f"! maxDepth = {maxDepth}")
-                try:
-                    cv_stats = runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, cv_folds=4, input_maxIter = maxIter, 
-                                                                        input_maxDepth = maxDepth, input_maxBins = maxBins, 
-                                                                        input_stepSize = stepSize, thresholds_list = thresholds)
+            try:
+                cv_stats = runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, cv_folds=4, input_maxIter = maxIter, 
+                                                                    input_maxDepth = maxDepth, input_maxBins = maxBins, 
+                                                                    input_stepSize = stepSize, thresholds_list = thresholds)
 
-                    grid_search = pd.concat([grid_search,cv_stats],axis=0)
-                except:
-                    continue
+                grid_search = pd.concat([grid_search,cv_stats],axis=0)
+            except:
+                continue
 
 test_results = predictTestData(cv_stats, preppedTest)
 
