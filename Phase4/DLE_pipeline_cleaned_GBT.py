@@ -82,7 +82,7 @@ print("**Loading Data Frames")
 # df_joined_data_all = spark.read.parquet(f"{blob_url}/joined_data_all")
 # display(df_joined_data_all)
 
-df_joined_data_all_with_efeatures = spark.read.parquet(f"{blob_url}/joined_all_with_efeatures_Downsampled").filter((col("YEAR")==2021) | (col("YEAR")==2018))
+df_joined_data_all_with_efeatures = spark.read.parquet(f"{blob_url}/joined_all_with_efeatures_Downsampled")
 # df_joined_data_all_with_efeatures = df_joined_data_all_with_efeatures.withColumn("pagerank",df_joined_data_all_with_efeatures.pagerank.cast('double'))
 display(df_joined_data_all_with_efeatures)
 
@@ -415,13 +415,17 @@ grid_search
 
 # COMMAND ----------
 
+grid_search
+
+# COMMAND ----------
+
 test_results = predictTestData(grid_search[grid_search['val_F0.5']>0], preppedTest)
 test_results
 
 # COMMAND ----------
 
 grid_spark_DF = spark.createDataFrame(test_results.drop(columns=['trained_model']))
-grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/GBT_grid_CV_120222")
+grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/GBT_grid_CV_120122")
 
 # COMMAND ----------
 
@@ -446,12 +450,6 @@ preds = best_model_save.transform(preppedTest).withColumn("predicted_probability
 preds_train = best_model_save.transform(preppedTrain.sample(0.25)).withColumn("predicted_probability", extract_prob_udf(col("probability")))
 
 preds.write.mode('overwrite').parquet(f"{blob_url}/best_GBT_predictions")
-
-# COMMAND ----------
-
-# grid_search['trained_model'][0].coefficients
-
-len(list(best_model_save.featureImportances))
 
 # COMMAND ----------
 
