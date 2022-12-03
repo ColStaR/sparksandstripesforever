@@ -83,16 +83,16 @@ display(df_flights1)
 # COMMAND ----------
 
 # Display summary stats for ID fields
-print("distinct ORIGIN: ", df_flights1.select("ORIGIN").distinct().count())
-print("distinct ORIGIN_AIRPORT_ID: ", df_flights1.select("ORIGIN_AIRPORT_ID").distinct().count())
-print("distinct ORIGIN_AIRPORT_SEQ_ID: ",df_flights1.select("ORIGIN_AIRPORT_SEQ_ID").distinct().count())
-print("distinct DEST: ",df_flights1.select("DEST").distinct().count())
-print("distinct DEST_AIRPORT_ID: ",df_flights1.select("DEST_AIRPORT_ID").distinct().count())
-print("distinct DEST_AIRPORT_SEQ_ID: ",df_flights1.select("DEST_AIRPORT_SEQ_ID").distinct().count())
-print("distinct OP_UNIQUE_CARRIER: ",df_flights1.select("OP_UNIQUE_CARRIER").distinct().count())
-print("distinct TAIL_NUM: ", df_flights1.select("TAIL_NUM").distinct().count())
-print("distinct OP_CARRIER_FL_NUM: ",df_flights1.select("OP_CARRIER_FL_NUM").distinct().count())
-print("distinct ORIGIN_WAC: ",df_flights1.select("ORIGIN_WAC").distinct().count())
+print("distinct ORIGIN: ", df_flights.select("ORIGIN").distinct().count())
+print("distinct ORIGIN_AIRPORT_ID: ", df_flights.select("ORIGIN_AIRPORT_ID").distinct().count())
+print("distinct ORIGIN_AIRPORT_SEQ_ID: ",df_flights.select("ORIGIN_AIRPORT_SEQ_ID").distinct().count())
+print("distinct DEST: ",df_flights.select("DEST").distinct().count())
+print("distinct DEST_AIRPORT_ID: ",df_flights.select("DEST_AIRPORT_ID").distinct().count())
+print("distinct DEST_AIRPORT_SEQ_ID: ",df_flights.select("DEST_AIRPORT_SEQ_ID").distinct().count())
+print("distinct OP_UNIQUE_CARRIER: ",df_flights.select("OP_UNIQUE_CARRIER").distinct().count())
+print("distinct TAIL_NUM: ", df_flights.select("TAIL_NUM").distinct().count())
+print("distinct OP_CARRIER_FL_NUM: ",df_flights.select("OP_CARRIER_FL_NUM").distinct().count())
+print("distinct ORIGIN_WAC: ",df_flights.select("ORIGIN_WAC").distinct().count())
 
 # COMMAND ----------
 

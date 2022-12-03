@@ -132,13 +132,31 @@ df_all.printSchema()
 
 # COMMAND ----------
 
-data_pandas = df_all.groupBy("YEAR").agg(F.sum("DEP_DEL15").alias("count of delayed and cancelled flights")).toPandas()
-data_pandas.sort_values("YEAR").set_index("YEAR").plot(kind='bar', title = 'Flight volume by year')
+data_pandas_totalFlight = df_all.groupBy("YEAR").agg(F.count("flight_id").alias("total_flights")).toPandas()
+data_pandas_totalFlight.sort_values("YEAR").set_index("YEAR").plot(kind='bar', title = 'Flight volume by Year')
 
 # COMMAND ----------
 
-data_pandas = df_all.groupBy("YEAR").agg(F.count("flight_id").alias("count of flights")).toPandas()
-data_pandas.sort_values("YEAR").set_index("YEAR").plot(kind='bar', title = 'Flight volume by year')
+data_pandas_delays = df_all.groupBy("YEAR").agg(F.sum("DEP_DEL15").alias("total_delayed_flights")).toPandas()
+data_pandas_delays.sort_values("YEAR").set_index("YEAR").plot(kind='bar', title = 'Flight Delay by Year')
+
+# COMMAND ----------
+
+df_trend = pd.merge(data_pandas_totalFlight, data_pandas_delays, on=["YEAR", "YEAR"])
+df_trend
+
+# COMMAND ----------
+
+df_trend['perc_delay_total'] = df_trend['total_delayed_flights'] / df_trend['total_flights'] * 100
+df_trend
+
+# COMMAND ----------
+
+df_trend.drop(df_trend.columns[[1,2]], axis = 1, inplace=True)
+
+# COMMAND ----------
+
+df_trend.sort_values("YEAR").set_index("YEAR").plot(title = 'Flight Percent Delay by Year')
 
 # COMMAND ----------
 
@@ -265,8 +283,12 @@ matrix_spearman = Correlation.corr(df_vector,vector_col, method='spearman').coll
 corr_matrix_spearman = matrix_spearman.toArray().tolist() 
 
 corr_matrix_spearman = pd.DataFrame(data=corr_matrix_spearman, columns = df_values.columns, index=df_values.columns) 
-corr_matrix_spearman[0].style.background_gradient(cmap='coolwarm').set_precision(2)
+
 # corr_matrix_spearman.style.background_gradient(cmap='coolwarm').set_precision(2)
+
+# COMMAND ----------
+
+corr_matrix_spearman[['DEP_DEL15']].style.background_gradient(cmap='coolwarm').set_precision(2)
 
 # COMMAND ----------
 
