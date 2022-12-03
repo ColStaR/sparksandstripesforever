@@ -222,7 +222,13 @@ def extract_prob(v):
         return None
 extract_prob_udf = F.udf(extract_prob, DoubleType())
 
-
+def FScore(beta, precision, recall):
+    if precision + recall == 0:
+        F = 0
+    else:
+        F = (1 + beta**2) * (precision * recall) / ((beta**2 * precision) + recall)
+    return F
+FScore_udf = F.udf(FScore, DoubleType())
     
 def testModelPerformance(predictions, y='DEP_DEL15'):
     
@@ -259,12 +265,12 @@ def testModelPerformance(predictions, y='DEP_DEL15'):
 
 
 ###### THIS WILL NOT RUN - WORK IN PROGRESS
-def predictTestData(cv_stats, dataFrameInput):
+def predictTestData(cv_stats, dataFrameInput, featureCol='features'):
     
     print(f"@ Starting Test Evaluation")
     print(f"@ {getCurrentDateTimeFormatted()}")
     # Prepare 2021 Test Data
-    selectedcols = ["DEP_DEL15", "YEAR", "features"]
+    selectedcols = ["DEP_DEL15", "YEAR", featureCol]
     dataset = dataFrameInput.select(selectedcols).cache()
     
     test_stats = pd.DataFrame()
@@ -278,7 +284,7 @@ def predictTestData(cv_stats, dataFrameInput):
 
         currentYearPredictions = best_model['trained_model'].transform(dataset).withColumn("predicted_probability", extract_prob_udf(col("probability")))
         thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
-                                                             .withColumn("prediction", (col('predicted_probability') > best_model['threshold']).cast('double') )
+                                                     .withColumn("prediction", (col('predicted_probability') > best_model['threshold']).cast('double') )
 
 #         thresholdPredictions = thresholdPredictions.withColumn("row_id", F.monotonically_increasing_id()).cache()
 
@@ -290,19 +296,39 @@ def predictTestData(cv_stats, dataFrameInput):
         currentYearMetrics = testModelPerformance(thresholdPredictions)
         stats = pd.DataFrame([currentYearMetrics], columns=['test_Precision','test_Recall','test_F0.5','test_F1','test_Accuracy'])
         test_stats = pd.concat([test_stats, stats], axis=0)
-        
-    final_stats = pd.concat([stats.reset_index(drop=True), cv_stats.reset_index(drop=True)], axis=1)
 
+    final_stats = pd.concat([test_stats.reset_index(drop=True), cv_stats.reset_index(drop=True)], axis=1)
+    
+    #clean up cachced DFs
+    dataset.unpersist()
+    
     return final_stats
   
     
+def getFeatureNames(preppedPipelineModel, featureCol='features'):
+    # Get feature names for use later 
+    meta = [f.metadata 
+        for f in preppedPipelineModel.schema.fields 
+        if f.name == featureCol][0]
+    
+    try:
+        # access feature name and index
+        feature_names = meta['ml_attr']['attrs']['binary'] + meta['ml_attr']['attrs']['numeric']
+        # feature_names = pd.DataFrame(feature_names)
+    except:
+        feature_names = meta['ml_attr']['attrs']['nominal'] + meta['ml_attr']['attrs']['numeric']
+        
+    feature_names = [feature['name'] for feature in feature_names]
+    
+    return feature_names
+
+
 def getFeatureImportance(featureNames, coefficients):
     
     featureImportances = pd.DataFrame(zip(featureNames,coefficients), columns=['featureName','coefficient'])
     featureImportances['importance'] = featureImportances['coefficient'].abs()
     
-    return featureImportances
-
+    return featureImportances.sort_values('importance', ascending=False)
 
 # COMMAND ----------
 
@@ -674,7 +700,7 @@ display(preppedTest)
 
 # COMMAND ----------
 
-def runBlockingTimeSeriesCrossValidation_MLP(preppedTrain, input_layers, cv_folds=4, maxIter = 100, blockSize = 128, stepSize = 0.03, thresholds_list = [0.5]):
+def runBlockingTimeSeriesCrossValidation_MLP(preppedTrain, input_layers, featureCol='features', cv_folds=4, maxIter = 100, blockSize = 128, stepSize = 0.03, thresholds_list = [0.5]):
     """
     Function which performs blocking time series cross validation
     Takes the pipeline-prepped DF as an input, with options for number of desired folds and logistic regression parameters
@@ -697,15 +723,17 @@ def runBlockingTimeSeriesCrossValidation_MLP(preppedTrain, input_layers, cv_fold
         train_cutoff = min_perc + (0.7 * cutoff)
 
         cv_train = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= min_perc) & (col("DEP_DATETIME_LAG_percent") < train_cutoff))\
-                                .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
+                                .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", featureCol]).cache()
         
         cv_val = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= train_cutoff) & (col("DEP_DATETIME_LAG_percent") < max_perc))\
-                              .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
+                              .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", featureCol]).cache()
         
+        print(f"@ Creating MLP NN Model {i}")
+        print(f"@ {getCurrentDateTimeFormatted()}")
         # create the trainer and set its parameters
         multilayer_perceptrion_classifier = MultilayerPerceptronClassifier(
                     labelCol = "DEP_DEL15",
-                    featuresCol = "features",
+                    featuresCol = featureCol,
                     maxIter = maxIter,
                     layers = input_layers,
                     blockSize = blockSize,
@@ -713,12 +741,18 @@ def runBlockingTimeSeriesCrossValidation_MLP(preppedTrain, input_layers, cv_fold
                 )
 
         # train the model
+        
+        print(f"@ Training Model {i}")
+        print(f"@ {getCurrentDateTimeFormatted()}")
         mlpModel = multilayer_perceptrion_classifier.fit(cv_train)
         
+        print(f"@ Creating Predictions {i}")
+        print(f"@ {getCurrentDateTimeFormatted()}")
         currentYearPredictions = mlpModel.transform(cv_val).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
 
         for threshold in thresholds_list:
 
+            print(f"Threshold {threshold} {i}")
             thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
                                                          .withColumn("prediction", (col('predicted_probability') > threshold).cast('double') )
 
@@ -733,7 +767,13 @@ def runBlockingTimeSeriesCrossValidation_MLP(preppedTrain, input_layers, cv_fold
             stats['trained_model'] = mlpModel
 
             cv_stats = pd.concat([cv_stats,stats],axis=0)
-            
+    
+    #clean up cachced DFs
+    cv_train.unpersist()
+    cv_val.unpersist()
+    currentYearPredictions.unpersist()
+    thresholdPredictions.unpersist()
+    
     return cv_stats
 
 def getFeatures(inputDF): 
@@ -768,9 +808,9 @@ cvfold = 4
 # stepSizeGrid = [0.03, 0.1]
 # thresholds = [0.5, 0.6, 0.7, 0.8]
 
-maxIterGrid = [100, 200]
-blockSizeGrid = [128, 256]
-stepSizeGrid = [0.03, 0.1]
+maxIterGrid = [100]
+blockSizeGrid = [128]
+stepSizeGrid = [0.1]
 thresholds = [0.5, 0.6, 0.7, 0.8]
 
 grid_search = pd.DataFrame()
@@ -784,9 +824,10 @@ for maxIter in maxIterGrid:
             for layer in layers:
                 print(f"! layer = {layer}")
                 try:
-                    cv_stats = runBlockingTimeSeriesCrossValidation_MLP(preppedTrain, layer, cvfold, maxIter, blockSize, stepSize, thresholds)
-
+                    cv_stats = runBlockingTimeSeriesCrossValidation_MLP(preppedTrain, input_layers=layer, featuresCol = "scaledFeatures", cv_folds=cvfold, maxIter=maxIter, blockSize=blockSize, stepSize=stepSize, thresholds_list=thresholds)
+                    print(cv_stats)
                     grid_search = pd.concat([grid_search,cv_stats],axis=0)
+                    print(grid_search)
                 except:
                     continue
             
@@ -799,12 +840,112 @@ grid_search
 
 # COMMAND ----------
 
-test_results = predictTestData(grid_search, preppedTest)
+test = runBlockingTimeSeriesCrossValidation_MLP(preppedTrain.limit(10000), layer, "features", cvfold, maxIter, blockSize, stepSize, thresholds)
+
+# COMMAND ----------
+
+multilayer_perceptrion_classifier = MultilayerPerceptronClassifier(
+        labelCol = "DEP_DEL15",
+        featuresCol = "scaledFeatures",
+        maxIter = 100,
+        layers = [90, 15, 2],
+        blockSize = 128,
+        stepSize = 0.1
+    )
+
+# train the model
+#print(f"@ Training Model {i}")
+print(f"@ {getCurrentDateTimeFormatted()}")
+mlpModel = multilayer_perceptrion_classifier.fit(preppedTrain.limit(100000))
+
+#print(f"@ Creating Predictions {i}")
+print(f"@ {getCurrentDateTimeFormatted()}")
+currentYearPredictions = mlpModel.transform(preppedTrain.limit(10000))
+display(currentYearPredictions)
+#.withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
+
+# COMMAND ----------
+
+currentYearPredictions = currentYearPredictions.withColumn("predicted_probability", extract_prob_udf(col("probability")))
+currentYearMetrics = testModelPerformance(currentYearPredictions)
+display(currentYearMetrics)
+
+# COMMAND ----------
+
+#grid_search[grid_search['val_F0.5']>0]
+
+# COMMAND ----------
+
+test_results = predictTestData(grid_search[grid_search['val_F0.5']>0], preppedTest, featuresCol = "scaledFeatures")
+
+# COMMAND ----------
+
+#test_results = predictTestData(grid_search, preppedTest)
 
 # COMMAND ----------
 
 grid_spark_DF = spark.createDataFrame(test_results.drop(columns=['trained_model']))
 grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/neural_network_grid_CV_120122")
+
+# COMMAND ----------
+
+agg_results = test_results.drop(columns=['trained_model']).groupby(['maxIter','blockSize','stepSize', 'layers', 'threshold']).mean()
+
+mI, bS, sS, layers, thresh = agg_results[agg_results['val_F0.5'] == agg_results['val_F0.5'].max()].index[0]
+
+best_model = test_results[(test_results['maxIter']==mI) & 
+                               (test_results['blockSize']==bS) & 
+                               (test_results['stepSize']==sS) & 
+                               (test_results['layers']==layers) & 
+                               (test_results['threshold']==thresh)]
+
+best_model_save = best_model[best_model['val_F0.5']==best_model['val_F0.5'].max()].iloc[0]['trained_model']
+
+best_model
+
+# COMMAND ----------
+
+preds = best_model_save.transform(preppedTest).withColumn("predicted_probability", extract_prob_udf(col("probability")))
+
+preds.write.mode('overwrite').parquet(f"{blob_url}/best_MLPNN_predictions")
+
+# COMMAND ----------
+
+import matplotlib.pyplot as plt
+plt.figure(figsize=(10,10))
+plt.plot([0, 1], [0, 1], 'r--')
+plt.plot(best_model_save.summary.roc.select('FPR').collect(),
+         best_model_save.summary.roc.select('TPR').collect())
+plt.xlabel('FPR')
+plt.ylabel('TPR')
+plt.title(f'ROC, with AUC={best_model_save.summary.areaUnderROC}')
+plt.show()
+
+# COMMAND ----------
+
+fScoreThresholds = best_model_save.summary.precisionByThreshold.join(best_model_save.summary.recallByThreshold, on='threshold')\
+                                                               .withColumn('F05', FScore_udf(F.lit(0.5), col("precision"), col('recall')))
+
+thresh = fScoreThresholds.select('threshold').collect()
+
+# plt.figure(figsize=(15,10))
+plt.plot(thresh, fScoreThresholds.select('F05').collect(),color='red')
+plt.plot(thresh, fScoreThresholds.select('precision').collect(), color='green')
+plt.plot(thresh, fScoreThresholds.select('recall').collect(), color='blue')
+plt.legend(['F0.5 Score', 'Precision','Recall'], bbox_to_anchor=(1.05, 1))
+plt.xlabel('Threshold')
+plt.ylabel('Score')
+plt.title(f'Scores By Threshold')
+plt.show()
+
+# COMMAND ----------
+
+best_model_save.summaryplt.figure(figsize=(8,5))
+plt.plot(best_model_save.summary.objectiveHistory)
+plt.xlabel('Iteration')
+plt.ylabel('Loss')
+plt.title('Loss Curve')
+plt.show()
 
 # COMMAND ----------
 
