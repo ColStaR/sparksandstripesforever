@@ -379,7 +379,7 @@ def runBlockingTimeSeriesCrossValidation_MLP(preppedTrain, input_layers, feature
             stats['maxIter'] = maxIter
             stats['blockSize'] = blockSize
             stats['stepSize'] = stepSize
-            stats['layers'] = input_layers
+            stats['num_layers'] = len(input_layers)
             stats['threshold'] = threshold
             stats['trained_model'] = mlpModel
 
@@ -424,10 +424,10 @@ cvfold = 4
 # stepSizeGrid = [0.03, 0.1]
 # thresholds = [0.5, 0.6, 0.7, 0.8]
 
-maxIterGrid = [50]
+maxIterGrid = [100]
 blockSizeGrid = [128]
 stepSizeGrid = [0.5]
-thresholds = [0.5]
+thresholds = [0.5, 0.6, 0.7, 0.8]
 
 grid_search = pd.DataFrame()
 
@@ -440,7 +440,7 @@ for maxIter in maxIterGrid:
             for layer in layers:
                 print(f"! layer = {layer}")
                 try:
-                    cv_stats = runBlockingTimeSeriesCrossValidation_MLP(preppedTrain, input_layers=layer, featureCol = "features", cv_folds=cvfold, maxIter=maxIter, blockSize=blockSize, stepSize=stepSize, thresholds_list=thresholds)
+                    cv_stats = runBlockingTimeSeriesCrossValidation_MLP(preppedTrain, input_layers=layer, featureCol = "scaledFeatures", cv_folds=cvfold, maxIter=maxIter, blockSize=blockSize, stepSize=stepSize, thresholds_list=thresholds)
                     print(cv_stats)
                     grid_search = pd.concat([grid_search,cv_stats],axis=0)
                     print(grid_search)
@@ -460,33 +460,24 @@ display(preppedTrain)
 
 # COMMAND ----------
 
-test_preppedTrain = preppedTrain.filter(col("YEAR") == 2017)
-display(test_preppedTrain)
-
-# COMMAND ----------
-
-test = runBlockingTimeSeriesCrossValidation_MLP(test_preppedTrain, input_layers=layer, featureCol = "scaledFeatures", cv_folds=cvfold, maxIter=maxIter, blockSize=blockSize, stepSize=stepSize, thresholds_list=thresholds)
-
-# COMMAND ----------
-
-test_results = predictTestData(grid_search[grid_search['val_F0.5']>0], preppedTest)
+test_results = predictTestData(grid_search[grid_search['val_F0.5']>0], preppedTest, featureCol='scaledFeatures')
 test_results
 
 # COMMAND ----------
 
 grid_spark_DF = spark.createDataFrame(test_results.drop(columns=['trained_model']))
-grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/MLPNN_grid_CV_120222")
+grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/MLPNN_grid_CV_120322")
 
 # COMMAND ----------
 
-agg_results = test_results.drop(columns=['trained_model']).groupby(['maxIter','blockSize','stepSize', 'layers', 'threshold']).mean()
+agg_results = test_results.drop(columns=['trained_model']).groupby(['maxIter','blockSize','stepSize', 'num_layers', 'threshold']).mean()
 
 mI, bS, sS, layers, thresh = agg_results[agg_results['val_F0.5'] == agg_results['val_F0.5'].max()].index[0]
 
 best_model = test_results[(test_results['maxIter']==mI) & 
                                (test_results['blockSize']==bS) & 
                                (test_results['stepSize']==sS) & 
-                               (test_results['layers']==layers) & 
+                               (test_results['num_layers']==layers) & 
                                (test_results['threshold']==thresh)]
 
 best_model_save = best_model[best_model['val_F0.5']==best_model['val_F0.5'].max()].iloc[0]['trained_model']
@@ -499,7 +490,7 @@ preds = best_model_save.transform(preppedTest).withColumn("predicted_probability
 
 preds_train = best_model_save.transform(preppedTrain.sample(0.25)).withColumn("predicted_probability", extract_prob_udf(col("probability")))
 
-preds.write.mode('overwrite').parquet(f"{blob_url}/best_MLPNN_predictions")
+preds.write.mode('overwrite').parquet(f"{blob_url}/best_MLPNN_predictions_120322")
 
 # COMMAND ----------
 
@@ -515,7 +506,7 @@ feature_importances
 # COMMAND ----------
 
 featureImportanceDF = spark.createDataFrame(feature_importances)
-featureImportanceDF.write.mode('overwrite').parquet(f"{blob_url}/best_MLPNN_feature_importance")
+featureImportanceDF.write.mode('overwrite').parquet(f"{blob_url}/best_MLPNN_feature_importance_120322")
 
 feature_importances.head(50)
 
@@ -563,9 +554,15 @@ plt.show()
 
 # COMMAND ----------
 
-# best_model_save.summaryplt.figure(figsize=(8,5))
-# plt.plot(best_model_save.summary.objectiveHistory)
-# plt.xlabel('Iteration')
-# plt.ylabel('Loss')
-# plt.title('Loss Curve')
-# plt.show()
+# MAGIC %md
+# MAGIC 
+# MAGIC # Load Saved Data
+
+# COMMAND ----------
+
+savedDF = spark.read.parquet(f"{blob_url}/best_MLPNN_predictions_120322")
+display(savedDF)
+
+# COMMAND ----------
+
+
