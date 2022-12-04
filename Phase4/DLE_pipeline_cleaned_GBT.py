@@ -377,13 +377,77 @@ def runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, featureCol='features'
 
 # COMMAND ----------
 
+def runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, featureCol='features', cv_folds=4, input_maxIter = 20, input_maxDepth = 5, input_maxBins = 32, input_stepSize = 0.1, thresholds_list = [0.5]):
+    """
+    Function which performs blocking time series cross validation
+    Takes the pipeline-prepped DF as an input, with options for number of desired folds and GBT parameters
+    Returns a pandas dataframe of validation performance metrics and the corresponding models
+    """
+    
+    cutoff = 1/cv_folds
+    
+    cv_stats = pd.DataFrame()
+
+
+    for i in range(cv_folds):
+        
+        print(f"! Running fold {i+1} of {cv_folds}")
+        print(f"@ {getCurrentDateTimeFormatted()}")
+        min_perc = i*cutoff
+        max_perc = min_perc + cutoff
+        train_cutoff = min_perc + (0.7 * cutoff)
+        
+        cv_train = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= min_perc) & (col("DEP_DATETIME_LAG_percent") < max_perc))\
+                                .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", featureCol])\
+                                .withColumn('validationCol', col('DEP_DATETIME_LAG_percent')>=train_cutoff).cache()
+        
+#         cv_val = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= train_cutoff) & (col("DEP_DATETIME_LAG_percent") < max_perc))\
+#                               .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", featureCol]).cache()
+        
+        gbt = GBTClassifier(labelCol='DEP_DEL15', featuresCol='features', maxIter=input_maxIter, 
+                            maxDepth=input_maxDepth, maxBins=input_maxBins, stepSize=input_stepSize, 
+                            validationIndicatorCol='validationCol')
+        gbt_model = gbt.fit(cv_train)
+
+        currentYearPredictions = gbt_model.transform(cv_train.filter(col('validationCol')==True))\
+                                          .withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
+        
+        print(f"!! Starting threshold search")
+        for threshold in thresholds_list:
+#             print(f"! Testing threshold {threshold}")
+
+            thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
+                                                         .withColumn("prediction", (col('predicted_probability') > threshold).cast('double')).cache()
+
+            currentYearMetrics = testModelPerformance(thresholdPredictions)
+            stats = pd.DataFrame([currentYearMetrics], columns=['val_Precision','val_Recall','val_F0.5','val_F1','val_Accuracy'])
+            stats['cv_fold'] = i
+            stats['maxIter'] = input_maxIter
+            stats['maxDepth'] = input_maxDepth
+            stats['maxBins'] = input_maxBins
+            stats['stepSize'] = input_stepSize
+            stats['threshold'] = threshold
+            stats['trained_model'] = gbt_model
+
+            cv_stats = pd.concat([cv_stats,stats],axis=0)
+    #clean up cachced DFs
+    cv_train.unpersist()
+#     cv_val.unpersist()
+    currentYearPredictions.unpersist()
+    thresholdPredictions.unpersist()
+    
+    return cv_stats
+
+
+# COMMAND ----------
+
 # Hyperparameter Tuning Parameter Grid for Random Forest
 # Each CV takes about 30 minutes.
 
-maxIterGrid = [5, 10, 50]
-maxDepthGrid = [4, 8, 16]
-maxBinsGrid = [32, 64, 128]
-stepSizeGrid = [0.1, 0.5]
+maxIterGrid = [5, 10]
+maxDepthGrid = [16, 8, 4]
+maxBinsGrid = [128, 32, 16]
+stepSizeGrid = [0.5, 0.1]
 thresholds = [0.5, 0.6, 0.7, 0.8]
 
 
@@ -419,25 +483,21 @@ grid_search
 
 # COMMAND ----------
 
-test_results = predictTestData(grid_search[grid_search['val_F0.5']>0], preppedTest)
-test_results
+timestamp = pd.to_datetime('today').strftime('%m%d%y%H')
+grid_spark_DF = spark.createDataFrame(grid_search.drop(columns=['trained_model']))
+grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/GBT_grid_CV_valResults_{timestamp}")
 
 # COMMAND ----------
 
-grid_spark_DF = spark.createDataFrame(test_results.drop(columns=['trained_model']))
-grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/GBT_grid_CV_120122")
-
-# COMMAND ----------
-
-agg_results = test_results.drop(columns=['trained_model']).groupby(['maxIter','maxDepth','maxBins','stepSize','threshold']).mean()
+agg_results = grid_search.drop(columns=['trained_model']).groupby(['maxIter','maxDepth','maxBins','stepSize','threshold']).mean()
 
 mI, mD, mB, sS, thresh = agg_results[agg_results['val_F0.5'] == agg_results['val_F0.5'].max()].index[0]
 
-best_model = test_results[(test_results['maxIter']==mI) & 
-                               (test_results['maxDepth']==mD) & 
-                               (test_results['maxBins']==mB) & 
-                               (test_results['stepSize']==sS) & 
-                               (test_results['threshold']==thresh)]
+best_model = grid_search[(grid_search['maxIter']==mI) & 
+                               (grid_search['maxDepth']==mD) & 
+                               (grid_search['maxBins']==mB) & 
+                               (grid_search['stepSize']==sS) & 
+                               (grid_search['threshold']==thresh)]
 
 best_model_save = best_model[best_model['val_F0.5']==best_model['val_F0.5'].max()].iloc[0]['trained_model']
 
@@ -449,7 +509,7 @@ preds = best_model_save.transform(preppedTest).withColumn("predicted_probability
 
 preds_train = best_model_save.transform(preppedTrain.sample(0.25)).withColumn("predicted_probability", extract_prob_udf(col("probability")))
 
-preds.write.mode('overwrite').parquet(f"{blob_url}/best_GBT_predictions")
+preds.write.mode('overwrite').parquet(f"{blob_url}/best_GBT_predictions_{timestamp}")
 
 # COMMAND ----------
 
@@ -459,9 +519,14 @@ feature_importances
 # COMMAND ----------
 
 featureImportanceDF = spark.createDataFrame(feature_importances)
-featureImportanceDF.write.mode('overwrite').parquet(f"{blob_url}/best_GBT_feature_importance")
+featureImportanceDF.write.mode('overwrite').parquet(f"{blob_url}/best_GBT_feature_importance_{timestamp}")
 
 feature_importances.head(50)
+
+# COMMAND ----------
+
+test_results = predictTestData(grid_search[grid_search['val_F0.5']>0], preppedTest)
+test_results
 
 # COMMAND ----------
 
@@ -504,6 +569,10 @@ plt.xlabel('Threshold')
 plt.ylabel('Score')
 plt.title(f'Scores By Threshold')
 plt.show()
+
+# COMMAND ----------
+
+best_model_save.evaluateEachIteration
 
 # COMMAND ----------
 

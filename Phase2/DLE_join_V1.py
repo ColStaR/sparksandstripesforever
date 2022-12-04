@@ -119,7 +119,8 @@ df_weather = spark.read.parquet(f"{data_BASE_DIR}parquet_weather_data{data_size}
                        .withColumn('ELEVATION', col('ELEVATION').cast('double'))\
                        .filter(col("STATION").isin(stations_list) ) \
                        .withColumn("DATE_HOUR", expr("substring(DATE, 0, 13)") ) \
-                       .withColumn("DEP_DATETIME_LAG", to_timestamp(col("DATE_HOUR")) + expr("INTERVAL 1 HOURS"))
+                       .withColumn("DEP_DATETIME_LAG", to_timestamp(col("DATE_HOUR")) + expr("INTERVAL 1 HOURS"))\
+                       .filter(col("HourlyWindSpeed") <= 200) \
 
 # 'HourlyPressureChange','HourlyWindGustSpeed',
 # 'MonthlyMeanTemperature', 'MonthlyMaximumTemperature', 'MonthlyGreatestSnowDepth',
