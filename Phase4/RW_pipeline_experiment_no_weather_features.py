@@ -449,6 +449,8 @@ test_results
 grid_spark_DF = spark.createDataFrame(test_results.drop(columns=['trained_model']))
 #grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/logistic_regression_grid_CV_120222")
 
+display(grid_spark_DF)
+
 # COMMAND ----------
 
 agg_results = test_results.drop(columns=['trained_model']).groupby(['regParam','elasticNetParam','maxIter','threshold']).mean()
@@ -480,7 +482,7 @@ feature_importances
 featureImportanceDF = spark.createDataFrame(feature_importances)
 #featureImportanceDF.write.mode('overwrite').parquet(f"{blob_url}/best_LR_feature_importance")
 
-feature_importances.head(50)
+display(feature_importances.head(50))
 
 # COMMAND ----------
 
