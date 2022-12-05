@@ -39,8 +39,6 @@ from sklearn import datasets
 from sklearn import svm
 from joblibspark import register_spark
 
-from pyspark.ml.classification import RandomForestClassifier
-
 import pandas as pd
 import numpy as np
 
@@ -174,8 +172,7 @@ def getFeatureNames(preppedPipelineModel, featureCol='features'):
 
 Y = "DEP_DEL15"
 
-categoricals = ['QUARTER','MONTH','DAY_OF_WEEK','OP_UNIQUE_CARRIER',
-                'DEP_HOUR']
+categoricals = ['QUARTER','MONTH','DAY_OF_WEEK','OP_UNIQUE_CARRIER']
 
 numerics = ['DISTANCE','ELEVATION','HourlyAltimeterSetting','HourlyDewPointTemperature',
             'HourlyWetBulbTemperature','HourlyDryBulbTemperature','HourlyPrecipitation',
@@ -184,10 +181,17 @@ numerics = ['DISTANCE','ELEVATION','HourlyAltimeterSetting','HourlyDewPointTempe
 
 # COMMAND ----------
 
+print(df_joined_data_all_with_efeatures.count())
+print(df_joined_data_all_with_efeatures.filter(col('DEP_DEL15')==1).count())
+print(df_joined_data_all_with_efeatures.filter(col('DEP_DEL15')==0).count())
+
 pipelineModel = buildPipeline(df_joined_data_all_with_efeatures.filter( col('YEAR') != 2021), 
                               categoricals, numerics, Y="DEP_DEL15", oneHot=True, imputer=False, scaler=False)
 
 preppedData = pipelineModel.transform(df_joined_data_all_with_efeatures)
+print(preppedData.count())
+print(preppedData.filter(col('DEP_DEL15')==1).count())
+print(preppedData.filter(col('DEP_DEL15')==0).count())
 # preppedValid = pipelineModel.transform(valid).cache()
 # preppedTest = pipelineModel.transform(test).cache()
 
@@ -197,6 +201,10 @@ preppedTrain = preppedData.filter( col('YEAR') != 2021)\
 
 # valid = df_joined_data_all_with_efeatures.filter((col('FL_DATE') >= '2020-07-01') & (col('FL_DATE') < '2021-01-01')).cache()
 preppedTest = preppedData.filter(col('YEAR') == 2021).cache()
+
+# COMMAND ----------
+
+(22310611 - 22185570) #/22310611
 
 # COMMAND ----------
 
@@ -388,32 +396,10 @@ def runBlockingTimeSeriesCrossValidation(preppedTrain, featureCol='features', cv
 
 # COMMAND ----------
 
-# cv_stats = runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_input=0, elasticNetParam_input=0,
-#                                          maxIter_input=10, thresholds_list = [0.5])
-
-# cv_stats
-
-# COMMAND ----------
-
-# feature_importances = getFeatureImportance(feature_names, list(cv_stats.iloc[0]['trained_model'].coefficients))
-# feature_importances.sort_values('importance', ascending=False)
-
-# COMMAND ----------
-
-# test_results = predictTestData(cv_stats, preppedTest)
-# test_results
-
-# COMMAND ----------
-
-regParamGrid = [0.0, 0.01, 0.5, 1, 2.0]
+regParamGrid = [0.0, 0.01, 0.5, 2.0]
 elasticNetParamGrid = [0.0, 0.5, 1.0]
-maxIterGrid = [5, 10, 50]
-thresholds = [0.5, 0.6, 0.7, 0.8]
-
-# regParamGrid = [0.0, 0.5]
-# elasticNetParamGrid = [0.0, 1.0]
-# maxIterGrid = [10]
-# thresholds = [0.5, 0.6, 0.7, 0.8]
+maxIterGrid = [5, 10]
+thresholds = [0.5, 0.6, 0.7]
 
 grid_search = pd.DataFrame()
 
@@ -442,13 +428,48 @@ grid_search[grid_search['val_F0.5']>0]
 
 # COMMAND ----------
 
+timestamp = pd.to_datetime('today').strftime('%m%d%y%H')
+grid_spark_DF = spark.createDataFrame(grid_search.drop(columns=['trained_model']))
+grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/BaselineLR_grid_CV_valResults_{timestamp}")
+
+# COMMAND ----------
+
+agg_results = grid_search.drop(columns=['trained_model']).groupby(['regParam','elasticNetParam','maxIter','threshold']).mean()
+
+rP, eNP, mI, thresh = agg_results[agg_results['val_F0.5'] == agg_results['val_F0.5'].max()].index[0]
+
+best_model = grid_search[(grid_search['regParam']==rP) & 
+                               (grid_search['elasticNetParam']==eNP) & 
+                               (grid_search['maxIter']==mI) & 
+                               (grid_search['threshold']==thresh)]
+
+best_model_save = best_model[best_model['val_F0.5']==best_model['val_F0.5'].max()].iloc[0]['trained_model']
+
+best_model
+
+# COMMAND ----------
+
+timestamp
+
+# COMMAND ----------
+
+preds = best_model_save.transform(preppedTest).withColumn("predicted_probability", extract_prob_udf(col("probability")))
+
+preds.write.mode('overwrite').parquet(f"{blob_url}/best_BaselineLR_predictions_{timestamp}")
+
+# COMMAND ----------
+
 test_results = predictTestData(grid_search[grid_search['val_F0.5']>0], preppedTest)
 test_results
 
 # COMMAND ----------
 
+display(test_results.drop(columns=['trained_model']))
+
+# COMMAND ----------
+
 grid_spark_DF = spark.createDataFrame(test_results.drop(columns=['trained_model']))
-grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/logistic_regression_baseline_grid_CV_120222")
+grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/baseline_logistic_regression_grid_CV_120322")
 
 # COMMAND ----------
 
@@ -469,7 +490,7 @@ best_model
 
 preds = best_model_save.transform(preppedTest).withColumn("predicted_probability", extract_prob_udf(col("probability")))
 
-preds.write.mode('overwrite').parquet(f"{blob_url}/best_LR_baseline_predictions")
+preds.write.mode('overwrite').parquet(f"{blob_url}/best_BaselineLR_predictions")
 
 # COMMAND ----------
 
@@ -479,7 +500,7 @@ feature_importances
 # COMMAND ----------
 
 featureImportanceDF = spark.createDataFrame(feature_importances)
-featureImportanceDF.write.mode('overwrite').parquet(f"{blob_url}/best_LR_baseline_feature_importance")
+featureImportanceDF.write.mode('overwrite').parquet(f"{blob_url}/best_BaselineLR_feature_importance")
 
 feature_importances.head(50)
 
@@ -498,26 +519,26 @@ plt.show()
 
 # COMMAND ----------
 
-# maxFMeasure = fScoreThresholds.groupBy().max('F05').select('max(F05)').head()
-# bestThreshold = fScoreThresholds.where(col('F05') == maxFMeasure['max(F05)']) \
-#     .select('threshold').head()['threshold']
-
-# bestThreshold
-
-fScoreThresholds.agg({"F05": "max"}).show()
-
-# COMMAND ----------
-
 fScoreThresholds = best_model_save.summary.precisionByThreshold.join(best_model_save.summary.recallByThreshold, on='threshold')\
                                                                .withColumn('F05', FScore_udf(F.lit(0.5), col("precision"), col('recall')))
 
-thresh = fScoreThresholds.select('threshold').collect()
 
-# plt.figure(figsize=(15,10))
-plt.plot(thresh, fScoreThresholds.select('F05').collect(),color='red')
-plt.plot(thresh, fScoreThresholds.select('precision').collect(), color='green')
-plt.plot(thresh, fScoreThresholds.select('recall').collect(), color='blue')
-plt.legend(['F0.5 Score', 'Precision','Recall'], bbox_to_anchor=(1.05, 1))
+# COMMAND ----------
+
+thresh = fScoreThresholds.select('threshold').collect()
+scores = fScoreThresholds.select('F05', 'precision','recall').collect()
+plt.plot(thresh, scores)
+# plt.xlabel('Threshold')
+
+# COMMAND ----------
+
+# plt.figure(figsize=(15,8))
+# plt.gca().set_prop_cycle(['red', 'green', 'blue'])
+# fig, ax = plt.subplots()
+# ax.set_color_cycle(['red', 'green', 'blue'])
+
+plt.plot(thresh, scores)
+plt.legend(['F0.5 Score', 'Precision','Recall'], bbox_to_anchor=(1.3, 1.0))
 plt.xlabel('Threshold')
 plt.ylabel('Score')
 plt.title(f'Scores By Threshold')
@@ -525,9 +546,32 @@ plt.show()
 
 # COMMAND ----------
 
-best_model_save.summaryplt.figure(figsize=(8,5))
+
+# thresh = fScoreThresholds.select('threshold').collect()
+
+# plt.figure(figsize=(15,10))
+# plt.plot(thresh, fScoreThresholds.select('F05').collect(),color='red')
+# plt.plot(thresh, fScoreThresholds.select('precision').collect(), color='green')
+# plt.plot(thresh, fScoreThresholds.select('recall').collect(), color='blue')
+
+plt.plot(fScoreThresholds.select('threshold').collect(),fScoreThresholds.select('F05', 'precision','recall').collect())
+plt.legend(['F0.5 Score', 'Precision','Recall'], bbox_to_anchor=(1.3, 1.05))
+plt.xlabel('Threshold')
+plt.ylabel('Score')
+plt.title(f'Scores By Threshold')
+plt.show()
+
+# COMMAND ----------
+
+# best_model_save.summary
+
+plt.figure(figsize=(8,5))
 plt.plot(best_model_save.summary.objectiveHistory)
 plt.xlabel('Iteration')
 plt.ylabel('Loss')
 plt.title('Loss Curve')
 plt.show()
+
+# COMMAND ----------
+
+
