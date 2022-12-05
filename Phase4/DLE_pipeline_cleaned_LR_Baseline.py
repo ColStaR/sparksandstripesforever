@@ -21,6 +21,7 @@ from pyspark.sql.functions import col, floor
 from pyspark.sql.functions import isnan, when, count, col
 from pyspark.sql.types import IntegerType, DoubleType
 
+from pyspark.ml.classification import LogisticRegression
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import StringIndexer, VectorAssembler, Imputer
 from pyspark.ml.feature import OneHotEncoder
@@ -37,8 +38,6 @@ from sklearn.model_selection import cross_val_score
 from sklearn import datasets
 from sklearn import svm
 from joblibspark import register_spark
-
-from pyspark.ml.classification import GBTClassifier
 
 import pandas as pd
 import numpy as np
@@ -64,11 +63,6 @@ spark.conf.set(
   f"fs.azure.sas.{blob_container}.{storage_account}.blob.core.windows.net",
   dbutils.secrets.get(scope = secret_scope, key = secret_key)
 )
-
-# COMMAND ----------
-
-display(dbutils.fs.ls(f"{blob_url}"))
-
 
 # COMMAND ----------
 
@@ -156,7 +150,66 @@ def buildPipeline(trainDF, categoricals, numerics, Y="DEP_DEL15", oneHot=True, i
     pipelineModel = pipeline.fit(trainDF)
     
     return pipelineModel
+    
+def getFeatureNames(preppedPipelineModel, featureCol='features'):
+    # Get feature names for use later 
+    meta = [f.metadata 
+        for f in preppedPipelineModel.schema.fields 
+        if f.name == featureCol][0]
+    
+    try:
+        # access feature name and index
+        feature_names = meta['ml_attr']['attrs']['binary'] + meta['ml_attr']['attrs']['numeric']
+        # feature_names = pd.DataFrame(feature_names)
+    except:
+        feature_names = meta['ml_attr']['attrs']['nominal'] + meta['ml_attr']['attrs']['numeric']
+        
+    feature_names = [feature['name'] for feature in feature_names]
+    
+    return feature_names
 
+# COMMAND ----------
+
+Y = "DEP_DEL15"
+
+categoricals = ['QUARTER','MONTH','DAY_OF_WEEK','OP_UNIQUE_CARRIER']
+
+numerics = ['DISTANCE','ELEVATION','HourlyAltimeterSetting','HourlyDewPointTemperature',
+            'HourlyWetBulbTemperature','HourlyDryBulbTemperature','HourlyPrecipitation',
+            'HourlyStationPressure','HourlySeaLevelPressure','HourlyRelativeHumidity',
+            'HourlyVisibility','HourlyWindSpeed']
+
+# COMMAND ----------
+
+print(df_joined_data_all_with_efeatures.count())
+print(df_joined_data_all_with_efeatures.filter(col('DEP_DEL15')==1).count())
+print(df_joined_data_all_with_efeatures.filter(col('DEP_DEL15')==0).count())
+
+pipelineModel = buildPipeline(df_joined_data_all_with_efeatures.filter( col('YEAR') != 2021), 
+                              categoricals, numerics, Y="DEP_DEL15", oneHot=True, imputer=False, scaler=False)
+
+preppedData = pipelineModel.transform(df_joined_data_all_with_efeatures)
+print(preppedData.count())
+print(preppedData.filter(col('DEP_DEL15')==1).count())
+print(preppedData.filter(col('DEP_DEL15')==0).count())
+# preppedValid = pipelineModel.transform(valid).cache()
+# preppedTest = pipelineModel.transform(test).cache()
+
+preppedTrain = preppedData.filter( col('YEAR') != 2021)\
+                   .withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))\
+                   .cache()
+
+# valid = df_joined_data_all_with_efeatures.filter((col('FL_DATE') >= '2020-07-01') & (col('FL_DATE') < '2021-01-01')).cache()
+preppedTest = preppedData.filter(col('YEAR') == 2021).cache()
+
+# COMMAND ----------
+
+(22310611 - 22185570) #/22310611
+
+# COMMAND ----------
+
+feature_names = getFeatureNames(preppedTrain)
+print(len(feature_names))
 
 # COMMAND ----------
 
@@ -280,51 +333,11 @@ def getFeatureImportance(featureNames, coefficients):
 
 # COMMAND ----------
 
-Y = "DEP_DEL15"
-
-categoricals = ['QUARTER','MONTH','DAY_OF_WEEK','OP_UNIQUE_CARRIER',
-                'DEP_HOUR','AssumedEffect_Text','airline_type',
-                'is_prev_delayed','Blowing_Snow','Freezing_Rain','Rain','Snow','Thunder']
-
-numerics = ['DISTANCE','ELEVATION','HourlyAltimeterSetting','HourlyDewPointTemperature',
-            'HourlyWetBulbTemperature','HourlyDryBulbTemperature','HourlyPrecipitation',
-            'HourlyStationPressure','HourlySeaLevelPressure','HourlyRelativeHumidity',
-            'HourlyVisibility','HourlyWindSpeed','perc_delay',
-            'pagerank']
-
-# COMMAND ----------
-
-pipelineModel = buildPipeline(df_joined_data_all_with_efeatures.filter( col('YEAR') != 2021), 
-                              categoricals, numerics, Y="DEP_DEL15", oneHot=False, imputer=False, scaler=False)
-
-preppedData = pipelineModel.transform(df_joined_data_all_with_efeatures)
-# preppedValid = pipelineModel.transform(valid).cache()
-# preppedTest = pipelineModel.transform(test).cache()
-
-preppedTrain = preppedData.filter( col('YEAR') != 2021)\
-                   .withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))\
-                   .cache()
-
-# valid = df_joined_data_all_with_efeatures.filter((col('FL_DATE') >= '2020-07-01') & (col('FL_DATE') < '2021-01-01')).cache()
-preppedTest = preppedData.filter(col('YEAR') == 2021).cache()
-
-# COMMAND ----------
-
-feature_names = getFeatureNames(preppedTrain)
-print(len(feature_names))
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC 
-# MAGIC ### GBT
-
-# COMMAND ----------
-
-def runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, featureCol='features', cv_folds=4, input_maxIter = 20, input_maxDepth = 5, input_maxBins = 32, input_stepSize = 0.1, thresholds_list = [0.5]):
+def runBlockingTimeSeriesCrossValidation(preppedTrain, featureCol='features', cv_folds=4, regParam_input=0, elasticNetParam_input=0,
+                                         maxIter_input=10, thresholds_list = [0.5]):
     """
     Function which performs blocking time series cross validation
-    Takes the pipeline-prepped DF as an input, with options for number of desired folds and GBT parameters
+    Takes the pipeline-prepped DF as an input, with options for number of desired folds and logistic regression parameters
     Returns a pandas dataframe of validation performance metrics and the corresponding models
     """
     
@@ -347,11 +360,12 @@ def runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, featureCol='features'
         cv_val = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= train_cutoff) & (col("DEP_DATETIME_LAG_percent") < max_perc))\
                               .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", featureCol]).cache()
         
-        gbt = GBTClassifier(labelCol='DEP_DEL15', featuresCol='features', maxIter=input_maxIter, 
-                            maxDepth=input_maxDepth, maxBins=input_maxBins, stepSize=input_stepSize)
-        gbt_model = gbt.fit(cv_train)
+        lr = LogisticRegression(labelCol="DEP_DEL15", featuresCol=featureCol, regParam = regParam_input, elasticNetParam = elasticNetParam_input, 
+                                maxIter = maxIter_input, threshold = 0.5, standardization = True)
 
-        currentYearPredictions = gbt_model.transform(cv_val).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
+        lrModel = lr.fit(cv_train)
+        
+        currentYearPredictions = lrModel.transform(cv_val).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
         
         print(f"!! Starting threshold search")
         for threshold in thresholds_list:
@@ -359,6 +373,245 @@ def runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, featureCol='features'
 
             thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
                                                          .withColumn("prediction", (col('predicted_probability') > threshold).cast('double')).cache()
+
+            currentYearMetrics = testModelPerformance(thresholdPredictions)
+            stats = pd.DataFrame([currentYearMetrics], columns=['val_Precision','val_Recall','val_F0.5','val_F1','val_Accuracy'])
+            stats['cv_fold'] = i
+            stats['regParam'] = regParam_input
+            stats['elasticNetParam'] = elasticNetParam_input
+            stats['maxIter'] = maxIter_input
+            stats['threshold'] = threshold
+            stats['trained_model'] = lrModel
+
+            cv_stats = pd.concat([cv_stats,stats],axis=0)
+
+    #clean up cachced DFs
+    cv_train.unpersist()
+    cv_val.unpersist()
+    currentYearPredictions.unpersist()
+    thresholdPredictions.unpersist()
+    
+    return cv_stats
+
+
+# COMMAND ----------
+
+regParamGrid = [0.0, 0.01, 0.5, 2.0]
+elasticNetParamGrid = [0.0, 0.5, 1.0]
+maxIterGrid = [5, 10]
+thresholds = [0.5, 0.6, 0.7]
+
+grid_search = pd.DataFrame()
+
+for maxIter in maxIterGrid:
+    print(f"~ maxIter = {maxIter}")
+    for elasticNetParam in elasticNetParamGrid:
+        print(f"~ elasticNetParam = {elasticNetParam}")
+        for regParam in regParamGrid:
+            print(f"~ regParam = {regParam}")
+            try:
+                cv_stats = runBlockingTimeSeriesCrossValidation(preppedTrain, cv_folds=4, regParam_input=regParam, 
+                                                                elasticNetParam_input=elasticNetParam, maxIter_input=maxIter, 
+                                                                thresholds_list = thresholds)
+
+                grid_search = pd.concat([grid_search,cv_stats],axis=0)
+            except:
+                print('Error, continuing to next iteration')
+                continue
+
+
+grid_search
+
+# COMMAND ----------
+
+grid_search[grid_search['val_F0.5']>0]
+
+# COMMAND ----------
+
+timestamp = pd.to_datetime('today').strftime('%m%d%y%H')
+grid_spark_DF = spark.createDataFrame(grid_search.drop(columns=['trained_model']))
+grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/BaselineLR_grid_CV_valResults_{timestamp}")
+
+# COMMAND ----------
+
+agg_results = grid_search.drop(columns=['trained_model']).groupby(['regParam','elasticNetParam','maxIter','threshold']).mean()
+
+rP, eNP, mI, thresh = agg_results[agg_results['val_F0.5'] == agg_results['val_F0.5'].max()].index[0]
+
+best_model = grid_search[(grid_search['regParam']==rP) & 
+                               (grid_search['elasticNetParam']==eNP) & 
+                               (grid_search['maxIter']==mI) & 
+                               (grid_search['threshold']==thresh)]
+
+best_model_save = best_model[best_model['val_F0.5']==best_model['val_F0.5'].max()].iloc[0]['trained_model']
+
+best_model
+
+# COMMAND ----------
+
+timestamp
+
+# COMMAND ----------
+
+preds = best_model_save.transform(preppedTest).withColumn("predicted_probability", extract_prob_udf(col("probability")))
+
+preds.write.mode('overwrite').parquet(f"{blob_url}/best_BaselineLR_predictions_{timestamp}")
+
+# COMMAND ----------
+
+test_results = predictTestData(grid_search[grid_search['val_F0.5']>0], preppedTest)
+test_results
+
+# COMMAND ----------
+
+display(test_results.drop(columns=['trained_model']))
+
+# COMMAND ----------
+
+grid_spark_DF = spark.createDataFrame(test_results.drop(columns=['trained_model']))
+grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/baseline_logistic_regression_grid_CV_120322")
+
+# COMMAND ----------
+
+agg_results = test_results.drop(columns=['trained_model']).groupby(['regParam','elasticNetParam','maxIter','threshold']).mean()
+
+rP, eNP, mI, thresh = agg_results[agg_results['val_F0.5'] == agg_results['val_F0.5'].max()].index[0]
+
+best_model = test_results[(test_results['regParam']==rP) & 
+                               (test_results['elasticNetParam']==eNP) & 
+                               (test_results['maxIter']==mI) & 
+                               (test_results['threshold']==thresh)]
+
+best_model_save = best_model[best_model['val_F0.5']==best_model['val_F0.5'].max()].iloc[0]['trained_model']
+
+best_model
+
+# COMMAND ----------
+
+preds = best_model_save.transform(preppedTest).withColumn("predicted_probability", extract_prob_udf(col("probability")))
+
+preds.write.mode('overwrite').parquet(f"{blob_url}/best_BaselineLR_predictions")
+
+# COMMAND ----------
+
+feature_importances = getFeatureImportance(feature_names, best_model_save.coefficients)
+feature_importances
+
+# COMMAND ----------
+
+featureImportanceDF = spark.createDataFrame(feature_importances)
+featureImportanceDF.write.mode('overwrite').parquet(f"{blob_url}/best_BaselineLR_feature_importance")
+
+feature_importances.head(50)
+
+# COMMAND ----------
+
+import matplotlib.pyplot as plt
+plt.figure(figsize=(10,10))
+plt.plot([0, 1], [0, 1], 'r--')
+plt.plot(best_model_save.summary.roc.select('FPR').collect(),
+         best_model_save.summary.roc.select('TPR').collect())
+plt.xlabel('FPR')
+plt.ylabel('TPR')
+plt.title(f'ROC, with AUC={best_model_save.summary.areaUnderROC}')
+plt.show()
+
+
+# COMMAND ----------
+
+fScoreThresholds = best_model_save.summary.precisionByThreshold.join(best_model_save.summary.recallByThreshold, on='threshold')\
+                                                               .withColumn('F05', FScore_udf(F.lit(0.5), col("precision"), col('recall')))
+
+
+# COMMAND ----------
+
+thresh = fScoreThresholds.select('threshold').collect()
+scores = fScoreThresholds.select('F05', 'precision','recall').collect()
+plt.plot(thresh, scores)
+# plt.xlabel('Threshold')
+
+# COMMAND ----------
+
+# plt.figure(figsize=(15,8))
+# plt.gca().set_prop_cycle(['red', 'green', 'blue'])
+# fig, ax = plt.subplots()
+# ax.set_color_cycle(['red', 'green', 'blue'])
+
+plt.plot(thresh, scores)
+plt.legend(['F0.5 Score', 'Precision','Recall'], bbox_to_anchor=(1.3, 1.0))
+plt.xlabel('Threshold')
+plt.ylabel('Score')
+plt.title(f'Scores By Threshold')
+plt.show()
+
+# COMMAND ----------
+
+
+# thresh = fScoreThresholds.select('threshold').collect()
+
+# plt.figure(figsize=(15,10))
+# plt.plot(thresh, fScoreThresholds.select('F05').collect(),color='red')
+# plt.plot(thresh, fScoreThresholds.select('precision').collect(), color='green')
+# plt.plot(thresh, fScoreThresholds.select('recall').collect(), color='blue')
+
+plt.plot(fScoreThresholds.select('threshold').collect(),fScoreThresholds.select('F05', 'precision','recall').collect())
+plt.legend(['F0.5 Score', 'Precision','Recall'], bbox_to_anchor=(1.3, 1.05))
+plt.xlabel('Threshold')
+plt.ylabel('Score')
+plt.title(f'Scores By Threshold')
+plt.show()
+
+# COMMAND ----------
+
+# best_model_save.summary
+
+plt.figure(figsize=(8,5))
+plt.plot(best_model_save.summary.objectiveHistory)
+plt.xlabel('Iteration')
+plt.ylabel('Loss')
+plt.title('Loss Curve')
+plt.show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ### GBT
+
+# COMMAND ----------
+
+def runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, cv_folds=4, input_maxIter = 20, input_maxDepth = 5, input_maxBins = 32, input_stepSize = 0.1, thresholds_list = [0.5]):
+    """
+    Function which performs blocking time series cross validation
+    Takes the pipeline-prepped DF as an input, with options for number of desired folds and logistic regression parameters
+    Returns a pandas dataframe of validation performance metrics and the corresponding models
+    """
+    
+    cutoff = 1/cv_folds
+    
+    cv_stats = pd.DataFrame()
+
+
+    for i in range(cv_folds):
+        min_perc = i*cutoff
+        max_perc = min_perc + cutoff
+        train_cutoff = min_perc + (0.7 * cutoff)
+
+        cv_train = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= min_perc) & (col("DEP_DATETIME_LAG_percent") < train_cutoff))\
+                                .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
+        
+        cv_val = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= train_cutoff) & (col("DEP_DATETIME_LAG_percent") < max_perc))\
+                              .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]).cache()
+        
+        gbt = GBTClassifier(labelCol = 'DEP_DEL15', featuresCol = 'features', input_maxIter, input_maxDepth, input_maxBins, input_stepSize)
+        gbt_model = gbt.fit(cv_train)
+
+        currentYearPredictions = gbt_model.transform(cv_val).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
+
+        for threshold in thresholds_list:
+
+            thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
+                                                         .withColumn("prediction", (col('predicted_probability') > threshold).cast('double') )
 
             currentYearMetrics = testModelPerformance(thresholdPredictions)
             stats = pd.DataFrame([currentYearMetrics], columns=['val_Precision','val_Recall','val_F0.5','val_F1','val_Accuracy'])
@@ -371,83 +624,20 @@ def runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, featureCol='features'
             stats['trained_model'] = gbt_model
 
             cv_stats = pd.concat([cv_stats,stats],axis=0)
-    #clean up cachced DFs
-    cv_train.unpersist()
-    cv_val.unpersist()
-    currentYearPredictions.unpersist()
-    thresholdPredictions.unpersist()
-    
+            
     return cv_stats
 
 
 # COMMAND ----------
 
-# def runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, featureCol='features', cv_folds=4, input_maxIter = 20, input_maxDepth = 5, input_maxBins = 32, input_stepSize = 0.1, thresholds_list = [0.5]):
-#     """
-#     Function which performs blocking time series cross validation
-#     Takes the pipeline-prepped DF as an input, with options for number of desired folds and GBT parameters
-#     Returns a pandas dataframe of validation performance metrics and the corresponding models
-#     """
-    
-#     cutoff = 1/cv_folds
-    
-#     cv_stats = pd.DataFrame()
+# Hyperparameter Tuning Parameter Grid for Random Forest
+# Each CV takes about 30 minutes.
 
-
-#     for i in range(cv_folds):
-        
-#         print(f"! Running fold {i+1} of {cv_folds}")
-#         print(f"@ {getCurrentDateTimeFormatted()}")
-#         min_perc = i*cutoff
-#         max_perc = min_perc + cutoff
-#         train_cutoff = min_perc + (0.7 * cutoff)
-        
-#         cv_train = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= min_perc) & (col("DEP_DATETIME_LAG_percent") < max_perc))\
-#                                 .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", featureCol])\
-#                                 .withColumn('validationCol', col('DEP_DATETIME_LAG_percent')>=train_cutoff).cache()
-        
-#         gbt = GBTClassifier(labelCol='DEP_DEL15', featuresCol='features', maxIter=input_maxIter, 
-#                             maxDepth=input_maxDepth, maxBins=input_maxBins, stepSize=input_stepSize, 
-#                             validationIndicatorCol='validationCol', validationTol=)
-#         gbt_model = gbt.fit(cv_train)
-
-#         currentYearPredictions = gbt_model.transform(cv_train.filter(col('validationCol')==True))\
-#                                           .withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
-        
-#         print(f"!! Starting threshold search")
-#         for threshold in thresholds_list:
-# #             print(f"! Testing threshold {threshold}")
-
-#             thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
-#                                                          .withColumn("prediction", (col('predicted_probability') > threshold).cast('double')).cache()
-
-#             currentYearMetrics = testModelPerformance(thresholdPredictions)
-#             stats = pd.DataFrame([currentYearMetrics], columns=['val_Precision','val_Recall','val_F0.5','val_F1','val_Accuracy'])
-#             stats['cv_fold'] = i
-#             stats['maxIter'] = input_maxIter
-#             stats['maxDepth'] = input_maxDepth
-#             stats['maxBins'] = input_maxBins
-#             stats['stepSize'] = input_stepSize
-#             stats['threshold'] = threshold
-#             stats['trained_model'] = gbt_model
-
-#             cv_stats = pd.concat([cv_stats,stats],axis=0)
-#     #clean up cachced DFs
-#     cv_train.unpersist()
-#     currentYearPredictions.unpersist()
-#     thresholdPredictions.unpersist()
-    
-#     return cv_stats
-
-
-# COMMAND ----------
-
-
-maxIterGrid = [5, 10]
-maxDepthGrid = [16, 8, 4]
-maxBinsGrid = [128, 32, 16]
-stepSizeGrid = [0.5, 0.1]
-thresholds = [0.5, 0.6, 0.7]
+maxIterGrid = [5, 10, 50]
+maxDepthGrid = [4, 8, 16]
+maxBinsGrid = [32, 64, 128]
+stepSizeGrid = [0.1, 0.5]
+thresholds = [0.5, 0.6, 0.7, 0.8]
 
 
 grid_search = pd.DataFrame()
@@ -460,170 +650,43 @@ for maxIter in maxIterGrid:
             print(f"! maxBins = {maxBins}")
             for maxDepth in maxDepthGrid:
                 print(f"! maxDepth = {maxDepth}")
-                try:
-                    cv_stats = runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, cv_folds=4, input_maxIter = maxIter, 
-                                                                        input_maxDepth = maxDepth, input_maxBins = maxBins, 
-                                                                        input_stepSize = stepSize, thresholds_list = thresholds)
+            try:
+                cv_stats = runBlockingTimeSeriesCrossValidation_GBT(preppedTrain, cv_folds=4, input_maxIter = maxIter, 
+                                                                    input_maxDepth = maxDepth, input_maxBins = maxBins, 
+                                                                    input_stepSize = stepSize, thresholds_list = thresholds)
 
-                    grid_search = pd.concat([grid_search,cv_stats],axis=0)
-                except:
-                    print('Error, continuing to next iteration')
-                    continue
+                grid_search = pd.concat([grid_search,cv_stats],axis=0)
+            except:
+                continue
 
+test_results = predictTestData(cv_stats, preppedTest)
 
 print("! Job Finished!")
 print(f"! {getCurrentDateTimeFormatted()}\n")
 
-grid_search
-
-# COMMAND ----------
-
-grid_search
-
-# COMMAND ----------
-
-timestamp = pd.to_datetime('today').strftime('%m%d%y%H')
-grid_spark_DF = spark.createDataFrame(grid_search.drop(columns=['trained_model']))
-grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/GBT_grid_CV_valResults_{timestamp}")
-
-# COMMAND ----------
-
-agg_results = grid_search.drop(columns=['trained_model']).groupby(['maxIter','maxDepth','maxBins','stepSize','threshold']).mean()
-
-mI, mD, mB, sS, thresh = agg_results[agg_results['val_F0.5'] == agg_results['val_F0.5'].max()].index[0]
-
-best_model = grid_search[(grid_search['maxIter']==mI) & 
-                               (grid_search['maxDepth']==mD) & 
-                               (grid_search['maxBins']==mB) & 
-                               (grid_search['stepSize']==sS) & 
-                               (grid_search['threshold']==thresh)]
-
-best_model_save = best_model[best_model['val_F0.5']==best_model['val_F0.5'].max()].iloc[0]['trained_model']
-
-best_model
-
-# COMMAND ----------
-
-preds = best_model_save.transform(preppedTest).withColumn("predicted_probability", extract_prob_udf(col("probability")))
-
-preds.write.mode('overwrite').parquet(f"{blob_url}/best_GBT_predictions_{timestamp}")
-
-# COMMAND ----------
-
-feature_importances = getFeatureImportance(feature_names, best_model_save.featureImportances)
-feature_importances
-
-# COMMAND ----------
-
-featureImportanceDF = spark.createDataFrame(feature_importances)
-featureImportanceDF.write.mode('overwrite').parquet(f"{blob_url}/best_GBT_feature_importance_{timestamp}")
-
-feature_importances.head(50)
-
-# COMMAND ----------
-
-print(best_model_save.totalNumNodes)
-
-best_model_save.treeWeights
-
-# COMMAND ----------
-
-preds_train = best_model_save.transform(preppedTrain.sample(0.4)).withColumn("predicted_probability", extract_prob_udf(col("probability")))
-
-y_score = preds_train.select("predicted_probability").collect()
-y_true = preds_train.select("DEP_DEL15").collect()
-
-# COMMAND ----------
-
-import matplotlib.pyplot as plt
-from sklearn.metrics import roc_curve, auc, precision_recall_curve
-
-fpr, tpr, thresholds = roc_curve(y_true, y_score)
-
-auc = auc(fpr, tpr)
-
-plt.figure(figsize=(10,10))
-plt.plot([0, 1], [0, 1], 'r--')
-plt.plot(fpr,tpr)
-plt.xlabel('FPR')
-plt.ylabel('TPR')
-plt.title(f'ROC, with AUC={auc}')
-plt.show()
-
-
-# COMMAND ----------
-
-precision, recall, thresholds = precision_recall_curve(y_true, y_score)
-precision = precision[:-1:10]
-recall = recall[:-1:10]
-thresholds = thresholds[::10]
-
-
-plt.figure(figsize=(12,8))
-plt.plot(thresholds, [FScore(0.5, p, r) for p, r in zip(precision,recall)], color='red')
-plt.plot(thresholds, precision, color='green')
-plt.plot(thresholds, recall, color='blue')
-plt.legend(['F0.5 Score', 'Precision','Recall'])
-plt.xlabel('Threshold')
-plt.ylabel('Score')
-plt.title(f'Scores By Threshold')
-plt.show()
-
-# COMMAND ----------
-
-# best_model_save.summary
-
-plt.figure(figsize=(8,5))
-plt.plot(best_model_save.evaluateEachIteration(preppedTrain))
-plt.xlabel('Iteration')
-plt.xticks([1,2,3,4,5])
-plt.ylabel('Loss')
-plt.title('GBT Loss Curve')
-plt.show()
-
-# COMMAND ----------
-
-agg_results.sort_values('val_F0.5', ascending=False).head(20).reset_index()[['maxIter','maxDepth','maxBins','stepSize','threshold']].merge(grid_search)
-
-# COMMAND ----------
-
-# test_results = predictTestData(grid_search[grid_search['val_F0.5']>0], preppedTest)
-test_results = predictTestData(agg_results.sort_values('val_F0.5', ascending=False
-                                                      ).head(20).reset_index()[['maxIter','maxDepth','maxBins','stepSize','threshold']
-                                                                              ].merge(grid_search), 
-                               preppedTest)
 test_results
 
 # COMMAND ----------
 
-display(test_results.drop(columns=['trained_model']))
-
-# COMMAND ----------
-
-timestamp = pd.to_datetime('today').strftime('%m%d%y%H')
 grid_spark_DF = spark.createDataFrame(test_results.drop(columns=['trained_model']))
-grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/GBT_grid_CV_{timestamp}")
+grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/GBT_grid_CV_120122")
 
 # COMMAND ----------
 
-agg_results = test_results.drop(columns=['trained_model']).groupby(['maxIter','maxDepth','maxBins','stepSize','threshold']).mean()
+# grid_search['trained_model'][0].coefficients
 
-mI, mD, mB, sS, thresh = agg_results[agg_results['val_F0.5'] == agg_results['val_F0.5'].max()].index[0]
-
-best_model = test_results[(test_results['maxIter']==mI) & 
-                               (test_results['maxDepth']==mD) & 
-                               (test_results['maxBins']==mB) & 
-                               (test_results['stepSize']==sS) & 
-                               (test_results['threshold']==thresh)]
-
-
-best_model
+len(list(grid_search['trained_model'].iloc[0].featureImportances))
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC 
-# MAGIC # OLD CODE
+# stages[0].getInputCol()
+# stages[0].getOutputCol()
+
+# stages[-1].getOutputCol()
+
+# stages[-1].getInputCols()
+
+display(preppedDataDF.select('ORIGIN'))
 
 # COMMAND ----------
 
@@ -924,69 +987,6 @@ for numTrees in numTreesGrid:
             runBlockingTimeSeriesCrossValidation_rf(preppedDataDF, numTrees, maxDepth, maxBins)
 print("! Job Finished!")
 print(f"! {getCurrentDateTimeFormatted()}\n")
-
-# COMMAND ----------
-
-def runBlockingTimeSeriesCrossValidation(preppedTrain, featureCol='features', cv_folds=4, regParam_input=0, elasticNetParam_input=0,
-                                         maxIter_input=10, thresholds_list = [0.5]):
-    """
-    Function which performs blocking time series cross validation
-    Takes the pipeline-prepped DF as an input, with options for number of desired folds and logistic regression parameters
-    Returns a pandas dataframe of validation performance metrics and the corresponding models
-    """
-    
-    cutoff = 1/cv_folds
-    
-    cv_stats = pd.DataFrame()
-
-
-    for i in range(cv_folds):
-        
-        print(f"! Running fold {i+1} of {cv_folds}")
-        print(f"@ {getCurrentDateTimeFormatted()}")
-        min_perc = i*cutoff
-        max_perc = min_perc + cutoff
-        train_cutoff = min_perc + (0.7 * cutoff)
-        
-        cv_train = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= min_perc) & (col("DEP_DATETIME_LAG_percent") < train_cutoff))\
-                                .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", featureCol]).cache()
-        
-        cv_val = preppedTrain.filter((col("DEP_DATETIME_LAG_percent") >= train_cutoff) & (col("DEP_DATETIME_LAG_percent") < max_perc))\
-                              .select(["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", featureCol]).cache()
-        
-        lr = LogisticRegression(labelCol="DEP_DEL15", featuresCol=featureCol, regParam = regParam_input, elasticNetParam = elasticNetParam_input, 
-                                maxIter = maxIter_input, threshold = 0.5, standardization = True)
-
-        lrModel = lr.fit(cv_train)
-        
-        currentYearPredictions = lrModel.transform(cv_val).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
-        
-        print(f"!! Starting threshold search")
-        for threshold in thresholds_list:
-#             print(f"! Testing threshold {threshold}")
-
-            thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
-                                                         .withColumn("prediction", (col('predicted_probability') > threshold).cast('double')).cache()
-
-            currentYearMetrics = testModelPerformance(thresholdPredictions)
-            stats = pd.DataFrame([currentYearMetrics], columns=['val_Precision','val_Recall','val_F0.5','val_F1','val_Accuracy'])
-            stats['cv_fold'] = i
-            stats['regParam'] = regParam_input
-            stats['elasticNetParam'] = elasticNetParam_input
-            stats['maxIter'] = maxIter_input
-            stats['threshold'] = threshold
-            stats['trained_model'] = lrModel
-
-            cv_stats = pd.concat([cv_stats,stats],axis=0)
-
-    #clean up cachced DFs
-    cv_train.unpersist()
-    cv_val.unpersist()
-    currentYearPredictions.unpersist()
-    thresholdPredictions.unpersist()
-    
-    return cv_stats
-
 
 # COMMAND ----------
 

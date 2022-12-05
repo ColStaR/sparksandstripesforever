@@ -69,251 +69,6 @@ spark.conf.set(
 def getCurrentDateTimeFormatted():
     return str(datetime.utcnow()).replace(" ", "-").replace(":", "-").replace(".", "-")
 
-def resetMetricsToAzure_LR():
-    backup_metrics = spark.read.parquet(f"{blob_url}/logistic_regression_metrics")
-    backup_date_string = getCurrentDateTimeFormatted()
-    backup_metrics.write.parquet(f"{blob_url}/metrics_backups/logistic_regression_metrics-{backup_date_string}")
-    
-    columns = ["date_time","precision", "f0.5", "recall", "accuracy", "regParam", "elasticNetParam", "maxIter", "threshold"]
-    data = [(datetime.utcnow(), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0)]
-    rdd = spark.sparkContext.parallelize(data)
-    dfFromRDD = rdd.toDF(columns)
-    
-    dfFromRDD.write.mode('overwrite').parquet(f"{blob_url}/logistic_regression_metrics")
-    print("LR Metrics Reset")
-
-def saveMetricsToAzure_LR(input_model, input_metrics):
-    columns = ["date_time","precision", "f0.5", "recall", "accuracy", "regParam", "elasticNetParam", "maxIter", "threshold"]
-    data = [(datetime.utcnow(), input_metrics.precision(1), input_metrics.fMeasure(label = 1.0, beta = 0.5), \
-             input_metrics.recall(1), input_metrics.accuracy, input_model.getRegParam(), \
-             input_model.getElasticNetParam(), input_model.getMaxIter(), input_model.getThreshold())]
-    rdd = spark.sparkContext.parallelize(data)
-    dfFromRDD = rdd.toDF(columns)
-    
-    dfFromRDD.write.mode('append').parquet(f"{blob_url}/logistic_regression_metrics")
-    print("LR Metrics Saved Successfully!")
-    
-def resetMetricsToAzure_RF():
-    backup_metrics = spark.read.parquet(f"{blob_url}/random_forest_metrics")
-    backup_date_string = getCurrentDateTimeFormatted()
-    backup_metrics.write.parquet(f"{blob_url}/metrics_backups/random_forest_metrics-{backup_date_string}")
-    
-    columns = ["date_time","precision", "f0.5", "recall", "accuracy", "numTrees", "maxDepth", "maxBins"]
-    data = [(datetime.utcnow(), 0.0, 0.0, 0.0, 0.0, 0, 0, 0)]
-    rdd = spark.sparkContext.parallelize(data)
-    dfFromRDD = rdd.toDF(columns)
-    
-    dfFromRDD.write.mode('overwrite').parquet(f"{blob_url}/random_forest_metrics")
-    print("RF Metrics Reset")
-
-def saveMetricsToAzure_RF(input_precision, input_fPointFive, input_recall, input_accuracy, input_numTrees, input_maxDepth, input_maxBins):
-    columns = ["date_time","precision", "f0.5", "recall", "accuracy", "numTrees", "maxDepth", "maxBins"]
-    data = [(datetime.utcnow(), input_precision, input_fPointFive, \
-             input_recall, input_accuracy, input_numTrees, \
-             input_maxDepth, input_maxBins)]
-    rdd = spark.sparkContext.parallelize(data)
-    dfFromRDD = rdd.toDF(columns)
-    
-    dfFromRDD.write.mode('append').parquet(f"{blob_url}/random_forest_metrics")
-    print("RF Metrics Saved Successfully!")
-
-    
-# WARNING: Will Delete Current Metrics for Logistic Regression
-#resetMetricsToAzure_LR()
-# WARNING: Will Delete Current Metrics for Logistic Regression
-
-
-# WARNING: Will Delete Current Metrics for Random Forest
-#resetMetricsToAzure_RF()
-# WARNING: Will Delete Current Metricsfor Random Forest
-
-# COMMAND ----------
-
-# Load Dataframes
-print("**Loading Data")
-
-# Inspect the Joined Data folders 
-display(dbutils.fs.ls(f"{blob_url}"))
-
-print("**Data Loaded")
-print("**Loading Data Frames")
-
-#df_joined_data_3m = spark.read.parquet(f"{blob_url}/joined_data_3m")
-#display(df_joined_data_3m)
-
-# df_joined_data_all = spark.read.parquet(f"{blob_url}/joined_data_all")
-# display(df_joined_data_all)
-
-df_joined_data_all_with_efeatures = spark.read.parquet(f"{blob_url}/joined_all_with_efeatures_Downsampled")
-# df_joined_data_all_with_efeatures = df_joined_data_all_with_efeatures.withColumn("pagerank",df_joined_data_all_with_efeatures.pagerank.cast('double'))
-display(df_joined_data_all_with_efeatures)
-
-#df_joined_data_2y = df_joined_data_all.filter(col("YEAR") <= 2016).cache()
-#display(df_joined_data_2y)
-
-#df_joined_data_pre2021 = df_joined_data_all.filter(col("YEAR") < 2021).cache()
-#display(df_joined_data_pre2021)
-
-#df_joined_data_2021 = df_joined_data_all.filter(col("YEAR") == 2021)
-#display(df_joined_data_2021)
-
-print("**Data Frames Loaded")
-
-# COMMAND ----------
-
-# Data cleaning Tasks
-
-# Fills in NA values for cancelled flights.
-
-#df_joined_data_3m = df_joined_data_3m.na.fill(value = 1,subset=["DEP_DEL15"])
-#df_joined_data_2y = df_joined_data_2y.na.fill(value = 1,subset=["DEP_DEL15"])
-# df_joined_data_all = df_joined_data_all.na.fill(value = 1,subset=["DEP_DEL15"])
-#df_joined_data_pre2021 = df_joined_data_pre2021.na.fill(value = 1,subset=["DEP_DEL15"])
-#df_joined_data_2021 = df_joined_data_2021.na.fill(value = 1,subset=["DEP_DEL15"])
-# df_joined_data_all_with_efeatures  = df_joined_data_all_with_efeatures.na.fill(value = 1,subset=["DEP_DEL15"])
-#display(df_joined_data_3m)
-#display(df_joined_data_all)
-
-#df_joined_data_2015_2020 = df_joined_data_2015_2020.na.fill(value = 1,subset=["DEP_DEL15"])
-#df_joined_data_2021 = df_joined_data_2021.na.fill(value = 1,subset=["DEP_DEL15"])
-
-# COMMAND ----------
-
-# dataframe schema
-# print(df_joined_data_all.count())
-# df_joined_data_all.printSchema()
-#print(df_joined_data_all.columns)
-
-# COMMAND ----------
-
-# Convert categorical features to One Hot Encoding
-
-categoricalColumns = ['ORIGIN','QUARTER','MONTH','DAY_OF_WEEK','OP_UNIQUE_CARRIER','ORIGIN_STATE_ABR',
-                'DEST','DEST_STATE_ABR','DEP_HOUR','AssumedEffect_Text','airline_type',
-                'is_prev_delayed','Blowing_Snow','Freezing_Rain','Rain','Snow','Thunder']
-
-# Could not use , 'flight_id'. Leads to buffer overflow error.
-# org.apache.spark.SparkException: Job aborted due to stage failure: Task 2 in stage 57.0 failed 4 times, most recent failure: Lost task 2.3 in stage 57.0 (TID 280) (10.139.64.6 executor 0): org.apache.spark.SparkException: Kryo serialization failed: Buffer overflow. Available: 0, required: 31
-
-# Is including this data leakage? 'DEP_TIME', 'DEP_HOUR', 
-
-stages = [] # stages in Pipeline
-
-# NOTE: Had to cut out a bunch of features due to the sheer number of NULLS in them, which were causing the entire dataframe to be skipped. Will need to get the Null values either filled or dropped.
-
-for categoricalCol in categoricalColumns:
-    # Category Indexing with StringIndexer
-    stringIndexer = StringIndexer(inputCol=categoricalCol, outputCol=categoricalCol + "Index").setHandleInvalid("skip")
-    # Use OneHotEncoder to convert categorical variables into binary SparseVectors
-    encoder = OneHotEncoder(inputCols=[stringIndexer.getOutputCol()], outputCols=[categoricalCol + "classVec"])
-#        
-    # Add stages.  These are not run here, but will run all at once later on.
-    stages += [stringIndexer, encoder]
-#    
-#print(stages)
-
-
-# COMMAND ----------
-
-# Create vectors for numeric and categorical variables
-
-# Join v2 columns:
-numericCols = ['DISTANCE','ELEVATION','HourlyAltimeterSetting','HourlyDewPointTemperature',
-            'HourlyWetBulbTemperature','HourlyDryBulbTemperature','HourlyPrecipitation',
-            'HourlyStationPressure','HourlySeaLevelPressure','HourlyRelativeHumidity',
-            'HourlyVisibility','HourlyWindSpeed','perc_delay',
-            'pagerank']
-
-# Features Not Included: 'DEP_DATETIME','DATE', 'HourlyWindGustSpeed', 'MonthlyMeanTemperature', 'MonthlyMaximumTemperature', 'MonthlyGreatestSnowDepth', 'MonthlyGreatestSnowfall', 'MonthlyTotalSnowfall', 'MonthlyTotalLiquidPrecipitation', 'MonthlyMinimumTemperature', 'DATE_HOUR', 'time_zone_id', 'UTC_DEP_DATETIME_LAG', 'UTC_DEP_DATETIME', 'HourlyPressureChange', 'distance_to_neighbor', 'neighbor_lat', 'neighbor_lon'
-
-# scaler = StandardScaler(inputCol=numericCols, outputCol="scaledFeatures", withStd=True, withMean=False)
-
-assemblerInputs = [c + "classVec" for c in categoricalColumns] + numericCols
-
-# Adds Features vector to data frames as part of pipeline.
-assembler = VectorAssembler(inputCols=assemblerInputs, outputCol="features").setHandleInvalid("skip")
-
-stages += [assembler]
-
-#print(stages)
-
-# COMMAND ----------
-
-# Takes about 9 minutes for Full
-
-# Create the pipeline to be applied to the dataframes
-partialPipeline = Pipeline().setStages(stages)
-
-# Apply pipeline to 3 Month
-#pipelineModel = partialPipeline.fit(df_joined_data_3m)
-#preppedDataDF = pipelineModel.transform(df_joined_data_3m)
-
-# Apply pipeline to 2 Year
-#pipelineModel = partialPipeline.fit(df_joined_data_2y)
-#preppedDataDF = pipelineModel.transform(df_joined_data_2y)
-
-# Apply pipeline to Full Time
-#pipelineModel = partialPipeline.fit(df_joined_data_all)
-#preppedDataDF = pipelineModel.transform(df_joined_data_all).cache()
-
-# Apply pipeline to Full Time With EFeatures
-pipelineModel = partialPipeline.fit(df_joined_data_all_with_efeatures)
-preppedDataDF = pipelineModel.transform(df_joined_data_all_with_efeatures).cache()
-
-# Get feature names to get feature importances later
-meta = [f.metadata 
-    for f in preppedDataDF.schema.fields 
-    if f.name == 'features'][0]
-
-# access feature name and index
-feature_names = meta['ml_attr']['attrs']['binary'] + meta['ml_attr']['attrs']['numeric']
-# feature_names = pd.DataFrame(feature_names)
-feature_names = [feature['name'] for feature in feature_names]
-
-# COMMAND ----------
-
-# Takes about 30 minutes for Full
-
-#Displays ROC graph
-
-#totalFeatures = [*categoricalColumns, *numericCols]
-#print(categoricalColumns, "\n")
-#print(numericCols, "\n")
-#print(totalFeatures, "\n")
-
-# Fit model to prepped data
-#lrModel = LogisticRegression(featuresCol = "features", labelCol = "DEP_DEL15").fit(preppedDataDF)
-
-# ROC for training data
-#display(lrModel, preppedDataDF, "ROC")
-
-# COMMAND ----------
-
-#display(lrModel, preppedDataDF)
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC 
-# MAGIC # Logistic Regression
-
-# COMMAND ----------
-
-# can do predictions.newProbability to get probs
-
-# COMMAND ----------
-
-def runLogisticRegression(linearRegressionModel, testData):
-    """
-    Applies a logistic regression model to the test data provided, and return the metrics from the test evaluation.
-    Realize now that the model input can be any model, and does not necessarily need to be logistic regression.
-    Maybe try using with other models?
-    """
-    predictions = linearRegressionModel.transform(testData)
-    
-    return predictions
-  
-
 def extract_prob(v):
     """
     Extracts the predicted probability from the logistic regression model
@@ -324,10 +79,15 @@ def extract_prob(v):
         return None
 extract_prob_udf = F.udf(extract_prob, DoubleType())
 
-
+def FScore(beta, precision, recall):
+    if precision + recall == 0:
+        F = 0
+    else:
+        F = (1 + beta**2) * (precision * recall) / ((beta**2 * precision) + recall)
+    return F
+FScore_udf = F.udf(FScore, DoubleType())
     
-def testModelPerformance(predictions):
-    
+def testModelPerformance(predictions, y='DEP_DEL15'):
     
     def FScore(beta, precision, recall):
         if precision + recall == 0:
@@ -336,12 +96,12 @@ def testModelPerformance(predictions):
             F = (1 + beta**2) * (precision * recall) / ((beta**2 * precision) + recall)
         return F
     
-    metrics = MulticlassMetrics(predictions.select("DEP_DEL15", "prediction").rdd)
+#     metrics = MulticlassMetrics(predictions.select(y, "prediction").rdd)
     
-    TP = predictions.filter((col("DEP_DEL15")==1) & (col("prediction")==1)).count()
-    TN = predictions.filter((col("DEP_DEL15")==0) & (col("prediction")==0)).count()
-    FP = predictions.filter((col("DEP_DEL15")==0) & (col("prediction")==1)).count()
-    FN = predictions.filter((col("DEP_DEL15")==1) & (col("prediction")==0)).count()
+    TP = predictions.filter((col(y)==1) & (col("prediction")==1)).count()
+    TN = predictions.filter((col(y)==0) & (col("prediction")==0)).count()
+    FP = predictions.filter((col(y)==0) & (col("prediction")==1)).count()
+    FN = predictions.filter((col(y)==1) & (col("prediction")==0)).count()
 
     if TP + FP == 0:
         precision = 0
@@ -360,318 +120,151 @@ def testModelPerformance(predictions):
     
     return precision, recall, F05, F1, accuracy
 
-# COMMAND ----------
 
-def runBlockingTimeSeriesCrossValidation(dataFrameInput, listOfYears = [2015, 2016, 2017, 2018, 2019, 2020], regParam_input = 0.0, elasticNetParam_input = 0, maxIter_input = 10, thresholds_list = [0.5, 0.7]):
-    """
-    Conducts the Blocking Time Series Cross Validation.
-    Accepts the full dataFrame of all years. 
-    Is hard coded to use pre-2021 data as training data, which it will cross validate against.
-    After all cross validations, will select best model from each year, and then apply the test 2021 data against it for final evaluation.
-    Prints metrics from final test evaluation at the end.
-    """
-    print(f"\n@ Starting runBlockingTimeSeriesCrossValidation")
-    print(f"@ {regParam_input}, {elasticNetParam_input}, {maxIter_input}, {thresholds_list}")
-    print(f"@ {getCurrentDateTimeFormatted()}")
-    
-    # list all of the years that the data will be trained against.
-#     listOfYears = dataFrameInput.select("YEAR").distinct().filter(col("YEAR") != 2021).rdd.flatMap(list).collect()
-    print("listOfYears:", listOfYears)
-
-    cv_stats = pd.DataFrame()
-
-    # Iterate through each of the individual years in the training data set.
-    for currentYear in listOfYears:
-
-        print(f"Processing Year: {currentYear}")
-        print(f"@ {getCurrentDateTimeFormatted()}")
-        currentYearDF_downsampled = dataFrameInput.filter(col("YEAR") == currentYear).cache()
-
-        # Adds a percentage column to each year's data frame, with the percentage corresponding to percentage of the year's time. 
-        # 0% = earliest time that year. 100% = latest time that year.
-        ######## TO DO: THIS MIGHT BE FASTER AS JUST AN ORDERBY + COUNT + HEAD/TAIL - worth testing
-        preppedDF = currentYearDF_downsampled.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
-
-        # remove unneeded columns. All feature values are captured in "features". All the other retained features are for row tracking.
-        selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
-        dataset = preppedDF.select(selectedcols).cache()
-
-    #        display(dataset)
-
-        # The training set is the data from the 70% earliest data.
-        # Test set is the latter 30% of the data.
-        trainingData = dataset.filter(col("DEP_DATETIME_LAG_percent") <= .70)
-        trainingTestData = dataset.filter(col("DEP_DATETIME_LAG_percent") > .70)
-    #        display(trainingTestData)
-
-        # Create and train a logistic regression model for the year based on training data.
-        # Note: createLinearRegressionModel() function would not work here for some reason.
-        lr = LogisticRegression(labelCol="DEP_DEL15", featuresCol="features", regParam = regParam_input, elasticNetParam = elasticNetParam_input, 
-                                maxIter = maxIter_input, threshold = 0.5, standardization = True)
-        lrModel = lr.fit(trainingData)
-
-        currentYearPredictions = runLogisticRegression(lrModel, trainingTestData
-                                                      ).withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
-
-        for threshold in thresholds_list:
-
-            thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
-                                                         .withColumn("prediction", (col('predicted_probability') > threshold).cast('double') )
-
-            currentYearMetrics = testModelPerformance(thresholdPredictions)
-            stats = pd.DataFrame([currentYearMetrics], columns=['val_Precision','val_Recall','val_F0.5','val_F1','val_Accuracy'])
-            stats['year'] = currentYear
-            stats['regParam'] = regParam_input
-            stats['elasticNetParam'] = elasticNetParam_input
-            stats['maxIter'] = maxIter_input
-            stats['threshold'] = threshold
-            stats['trained_model'] = lrModel
-
-            cv_stats = pd.concat([cv_stats,stats],axis=0)
-            
-    return cv_stats
-
-def predictTestData(cv_stats, dataFrameInput):
+###### THIS WILL NOT RUN - WORK IN PROGRESS
+def predictTestData(cv_stats, dataFrameInput, featureCol='features'):
     
     print(f"@ Starting Test Evaluation")
     print(f"@ {getCurrentDateTimeFormatted()}")
     # Prepare 2021 Test Data
-    selectedcols = ["DEP_DEL15", "YEAR", "features"]
+    selectedcols = ["DEP_DEL15", "YEAR", featureCol]
     dataset = dataFrameInput.select(selectedcols).cache()
     
     test_stats = pd.DataFrame()
     
     for row in range(len(cv_stats)):
-        best_model = cv_stats.sort_values("val_F0.5", ascending=False).iloc[row]
-        best_model_stats = cv_stats.sort_values("val_F0.5", ascending=False).iloc[[row]]
+        
+        print(f'Testing model {row + 1} of {len(cv_stats)}')
+        
+        best_model = cv_stats.iloc[row]
+        best_model_stats = cv_stats.iloc[[row]]
 
         currentYearPredictions = best_model['trained_model'].transform(dataset).withColumn("predicted_probability", extract_prob_udf(col("probability")))
         thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
-                                                             .withColumn("prediction", (col('predicted_probability') > best_model['threshold']).cast('double') )
-        
-        thresholdPredictions = thresholdPredictions.withColumn("row_id", F.monotonically_increasing_id())
-        
-#         if ensemble_predictions == None:
-#             ensemble_predictions = thresholdPredictions
-#         else:
-#             ensemble_predictions = ensemble_predictions.join(thresholdPredictions, ("row_id"))
-    
+                                                     .withColumn("prediction", (col('predicted_probability') > best_model['threshold']).cast('double') )
+
+#         thresholdPredictions = thresholdPredictions.withColumn("row_id", F.monotonically_increasing_id()).cache()
+
+    #         if ensemble_predictions == None:
+    #             ensemble_predictions = thresholdPredictions
+    #         else:
+    #             ensemble_predictions = ensemble_predictions.join(thresholdPredictions, ("row_id"))
+
         currentYearMetrics = testModelPerformance(thresholdPredictions)
         stats = pd.DataFrame([currentYearMetrics], columns=['test_Precision','test_Recall','test_F0.5','test_F1','test_Accuracy'])
-        test_stats = pd.concat([test_stats, stats], axis=1)
-        
-    final_stats = pd.concat([stats, cv_stats], axis=1)
+        test_stats = pd.concat([test_stats, stats], axis=0)
+
+    final_stats = pd.concat([test_stats.reset_index(drop=True), cv_stats.reset_index(drop=True)], axis=1)
+    
+    #clean up cachced DFs
+    dataset.unpersist()
     
     return final_stats
+  
+    
+def getFeatureNames(preppedPipelineModel, featureCol='features'):
+    # Get feature names for use later 
+    meta = [f.metadata 
+        for f in preppedPipelineModel.schema.fields 
+        if f.name == featureCol][0]
+    
+    try:
+        # access feature name and index
+        feature_names = meta['ml_attr']['attrs']['binary'] + meta['ml_attr']['attrs']['numeric']
+        # feature_names = pd.DataFrame(feature_names)
+    except:
+        feature_names = meta['ml_attr']['attrs']['nominal'] + meta['ml_attr']['attrs']['numeric']
+        
+    feature_names = [feature['name'] for feature in feature_names]
+    
+    return feature_names
+
+
+def getFeatureImportance(featureNames, coefficients):
+    
+    featureImportances = pd.DataFrame(zip(featureNames,coefficients), columns=['featureName','coefficient'])
+    featureImportances['importance'] = featureImportances['coefficient'].abs()
+    
+    return featureImportances.sort_values('importance', ascending=False)
 
 # COMMAND ----------
 
-cv_stats = runBlockingTimeSeriesCrossValidation(preppedDataDF, [2016,2017,2018,2019,2020], 0, 0, 10, thresholds_list = [0.5])
-# cv_stats.iloc[0]['trained_model'].coefficients
-cv_stats
+# Load Dataframes
+print("**Loading Data")
+
+# Inspect the Joined Data folders 
+display(dbutils.fs.ls(f"{blob_url}"))
+
+print("**Data Loaded")
+print("**Loading Data Frames")
+
+LR_pred = spark.read.parquet(f"{blob_url}/best_LR_predictions").select('flight_id','DEP_DEL15','prediction'
+                                                                      ).withColumnRenamed("prediction",'LR_prediction')
+
+GBT_pred = spark.read.parquet(f"{blob_url}/best_GBT_predictions_12042202").select('flight_id','DEP_DEL15','prediction'
+                                                                                 ).withColumnRenamed("prediction",'GBT_prediction')
+
+# MLP1_pred = spark.read.parquet(f"{blob_url}/best_MLPNN_predictions").select('flight_id','DEP_DEL15','prediction'
+#                                                                            ).withColumnRenamed("prediction",'MLP1_prediction')
+
+MLP_pred = spark.read.parquet(f"{blob_url}/best_MLPNN_predictions_120322").select('flight_id','DEP_DEL15','prediction'
+                                                                                  ).withColumnRenamed("prediction",'MLP_prediction')
+
+
+print("**Data Frames Loaded")
 
 # COMMAND ----------
 
-# Prepare 2021 Test Data
-currentYearDF = preppedDataDF.filter(col("YEAR") == 2021).cache()
-preppedTestDF = currentYearDF.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
-selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
-dataset = preppedTestDF.select(selectedcols).cache()
-
-ensemble_predictions = None
-
-for row in range(len(cv_stats)):
-    best_model = cv_stats.sort_values("val_F0.5", ascending=False).iloc[row]
-    best_model_stats = cv_stats.sort_values("val_F0.5", ascending=False).iloc[[row]]
-
-    currentYearPredictions = runLogisticRegression(best_model['trained_model'], dataset
-                                                  ).withColumn(f"predicted_probability_{row}", extract_prob_udf(col("probability")))
-    thresholdPredictions = currentYearPredictions.select('DEP_DEL15',f"predicted_probability_{row}")\
-                                                 .withColumn("prediction", (col(f"predicted_probability_{row}") > best_model['threshold']).cast('double') )\
-                                                 .withColumnRenamed('prediction',f'prediction_{row}')
-
-    thresholdPredictions = thresholdPredictions.withColumn("row_id", F.monotonically_increasing_id())
-
-    if ensemble_predictions == None:
-        ensemble_predictions = thresholdPredictions
-    else:
-        ensemble_predictions = ensemble_predictions.join(thresholdPredictions.select('row_id',f"predicted_probability_{row}",f'prediction_{row}'), ("row_id"))
-
-
-probability_columns = [column for column in ensemble_predictions.columns if 'prob' in column]
-prediction_columns = [column for column in ensemble_predictions.columns if 'prediction' in column]
-
-ensemble_predictions = ensemble_predictions.withColumn('probability', F.expr( '+'.join(probability_columns) ) / F.lit(len(probability_columns)))\
-                                           .withColumn('prediction', F.expr( '+'.join(prediction_columns) ) / F.lit(len(prediction_columns)))
-
-# display(ensemble_predictions)
-currentYearMetrics = testModelPerformance(ensemble_predictions)
-print(currentYearMetrics)
-# stats = pd.DataFrame([currentYearMetrics], columns=['test_Precision','test_Recall','test_F0.5','test_F1','test_Accuracy'])
-# stats = pd.concat([stats, best_model_stats], axis=1)
+print(LR_pred.count())
+print(LR_pred.filter(col('DEP_DEL15')==1).count())
+print(LR_pred.select('flight_id').distinct().count())
 
 # COMMAND ----------
 
-probability_columns = [column for column in ensemble_predictions.columns if 'prob' in column]
-prediction_columns = [column for column in ensemble_predictions.columns if 'prediction' in column]
-
-ensemble_predictions = ensemble_predictions.withColumn('average_probability', F.expr( '+'.join(probability_columns) ) / F.lit(len(probability_columns)))\
-                    .withColumn('prediction', (F.expr( '+'.join(prediction_columns) ) / F.lit(len(prediction_columns) ) > 0.5).cast('double') )
-
-currentYearMetrics = testModelPerformance(ensemble_predictions)
-print(currentYearMetrics)
+1063350/5665055
 
 # COMMAND ----------
 
-# regParamGrid = [0.0, 0.01, 0.5, 2.0]
-# elasticNetParamGrid = [0.0, 0.5, 1.0]
-# maxIterGrid = [5, 10, 50]
-# thresholds = [0.5, 0.6, 0.7, 0.8]
+full_preds = LR_pred.join(GBT_pred, ['flight_id','DEP_DEL15']).join(MLP_pred, ['flight_id','DEP_DEL15']) #.join(MLP2_pred, ['flight_id','DEP_DEL15'])
+display(full_preds)
 
-regParamGrid = [0.0, 0.5]
-elasticNetParamGrid = [0.0, 1.0]
-maxIterGrid = [10]
-thresholds = [0.5, 0.6, 0.7, 0.8]
+# COMMAND ----------
 
-grid_search = pd.DataFrame()
 
-for maxIter in maxIterGrid:
-    print(f"! maxIter = {maxIter}")
-    for elasticNetParam in elasticNetParamGrid:
-        print(f"! elasticNetParam = {elasticNetParam}")
-        for regParam in regParamGrid:
-            print(f"! regParam = {regParam}")
-            try:
-                cv_stats = runBlockingTimeSeriesCrossValidation(downsampledDF, listOfYears, regParam, elasticNetParam, maxIter, thresholds_list = thresholds)
-                test_results = predictTestData(cv_stats, preppedDataDF)
+pred_columns = [column for column in full_preds.columns if 'pred' in column]
 
-                grid_search = pd.concat([grid_search,test_results],axis=0)
-            except:
-                continue
-            
-                        
-print("! Job Finished!")
-print(f"! {getCurrentDateTimeFormatted()}\n")
+ensemble_predictions = full_preds.withColumn('total_pred', F.expr( '+'.join(pred_columns) ))\
+                                 .withColumn('avg_pred', col("total_pred") / F.lit(len(pred_columns)))
 
-grid_search
+display(ensemble_predictions)
 
+# COMMAND ----------
+
+metrics_LR = testModelPerformance(ensemble_predictions.withColumnRenamed("LR_prediction", 'prediction'))
+metrics_GBT = testModelPerformance(ensemble_predictions.withColumnRenamed("GBT_prediction", 'prediction'))
+metrics_MLP = testModelPerformance(ensemble_predictions.withColumnRenamed("MLP_prediction", 'prediction'))
+
+# metrics_smallMajority = testModelPerformance(ensemble_predictions.withColumn("prediction", col('avg_pred')>=0.5))
+metrics_bigMajority = testModelPerformance(ensemble_predictions.withColumn("prediction", col('avg_pred')>0.5))
+metrics_any = testModelPerformance(ensemble_predictions.withColumn("prediction", col('avg_pred')>0))
+metrics_all = testModelPerformance(ensemble_predictions.withColumn("prediction", col('avg_pred')==1))
+
+metrics = [metrics_LR, metrics_GBT, metrics_MLP, metrics_bigMajority, metrics_any, metrics_all]
+metric_type = ['Logistic Regression', 'Gradient Boosted Tree', 'Multilayer Perceptron', 'Ensemble Majority', 'Ensemble At Least One', 'Ensemble Unanimous']
+
+stats = pd.DataFrame()
+for metric, model_type in zip(metrics, metric_type):
+    results = pd.DataFrame([metric], columns=['test_Precision','test_Recall','test_F0.5','test_F1','test_Accuracy'])
+    results['Model'] = model_type
+    
+    stats = pd.concat([stats, results], axis=0)
+
+stats
 
 # COMMAND ----------
 
 grid_spark_DF = spark.createDataFrame(grid_search.drop(columns=['trained_model']))
 grid_spark_DF.write.mode('overwrite').parquet(f"{blob_url}/logistic_regression_grid_CV_112822")
-
-# COMMAND ----------
-
-# grid_search['trained_model'][0].coefficients
-
-len(list(grid_search['trained_model'].iloc[0].coefficients))
-
-# COMMAND ----------
-
-# stages[0].getInputCol()
-# stages[0].getOutputCol()
-
-# stages[-1].getOutputCol()
-
-# stages[-1].getInputCols()
-
-display(preppedDataDF.select('ORIGIN'))
-
-# COMMAND ----------
-
-print(f"@ Starting Test Evaluation")
-print(f"@ {getCurrentDateTimeFormatted()}")
-# Prepare 2021 Test Data
-currentYearDF = dataFrameInput.filter(col("YEAR") == 2021).cache()
-preppedDF = currentYearDF.withColumn("DEP_DATETIME_LAG_percent", percent_rank().over(Window.partitionBy().orderBy("DEP_DATETIME_LAG")))
-selectedcols = ["DEP_DEL15", "YEAR", "DEP_DATETIME_LAG_percent", "features"]
-dataset = preppedDF.select(selectedcols).cache()
-#        display(dataset)
-
-# Evaluate best model from cross validation against the test data frame of 2021 data, then print evaluation metrics.
-testDataSet = dataset.limit(10).cache()
-
-
-# COMMAND ----------
-
-test_predictions = testDataSet.select("DEP_DEL15")
-
-for i in range(len(cv_yearly_best)):
-    currentYearPredictions = runLogisticRegression(cv_yearly_best.iloc[i]['trained_model'], testDataSet)\
-                            .withColumn("predicted_probability", extract_prob_udf(col("probability"))).cache()
-    
-    thresholdPredictions = currentYearPredictions.select('DEP_DEL15','predicted_probability')\
-                                                 .withColumn(f"{cv_yearly_best.iloc[i]['year']}_prediction", (col('predicted_probability') > cv_yearly_best.iloc[i]['threshold']).cast('double') )
-        
-    test_predictions = test_predictions.withColumn(f"{cv_yearly_best.iloc[i]['year']}", thresholdPredictions.select('prediction'))
-    
-test_predictions
-
-# COMMAND ----------
-
-test_eval = pd.DataFrame()
-for year in cv_yearly_best['year'].unique():
-    stats = pd.DataFrame([testModelPerformance(testMetrics)], columns=['test_Precision','test_Recall','test_F0.5','test_F1','test_Accuracy'])
-    stats = pd.concat([stats, cv_yearly_best.iloc[[i]]], axis=1)
-        
-    test_eval = pd.concat([test_eval,stats],axis=0)
-    
-    
-test_eval
-
-# COMMAND ----------
-
-# Hyperparameter Tuning Parameter Grid
-# Each CV takes one hour. Do the math.
-
-#regParamGrid = [0.0, 0.01, 0.5, 2.0]
-#elasticNetParamGrid = [0.0, 0.5, 1.0]
-#maxIterGrid = [1, 5, 10]
-
-regParamGrid = [0.0]
-elasticNetParamGrid = [0]
-maxIterGrid = [10]
-thresholdGrid = [0.5]
-
-for regParam in regParamGrid:
-    print(f"! regParam = {regParam}")
-    for elasticNetParam in elasticNetParamGrid:
-        print(f"! elasticNetParam = {elasticNetParam}")
-        for maxIter in maxIterGrid:
-            print(f"! maxIter = {maxIter}")
-            for threshold in thresholdGrid:
-                print(f"! threshold = {threshold}")
-                runBlockingTimeSeriesCrossValidation(preppedDataDF, regParam, elasticNetParam, maxIter, threshold)
-print("! Job Finished!")
-print(f"! {getCurrentDateTimeFormatted()}\n")
-
-
-# COMMAND ----------
-
-# Downsampling Test
-
-regParamGrid = [0.0]
-elasticNetParamGrid = [0]
-maxIterGrid = [10]
-thresholdGrid = [0.5]
-
-for regParam in regParamGrid:
-    print(f"! regParam = {regParam}")
-    for elasticNetParam in elasticNetParamGrid:
-        print(f"! elasticNetParam = {elasticNetParam}")
-        for maxIter in maxIterGrid:
-            print(f"! maxIter = {maxIter}")
-            for threshold in thresholdGrid:
-                print(f"! threshold = {threshold}")
-                runBlockingTimeSeriesCrossValidation_downsampling(preppedDataDF, regParam, elasticNetParam, maxIter, threshold)
-print("! Job Finished!")
-print(f"! {getCurrentDateTimeFormatted()}\n")
-
-# COMMAND ----------
-
-current_metrics = spark.read.parquet(f"{blob_url}/logistic_regression_metrics")
-display(current_metrics)
 
 # COMMAND ----------
 
