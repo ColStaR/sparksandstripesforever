@@ -62,6 +62,10 @@ print("**Data Frames Loaded")
 
 # COMMAND ----------
 
+df_ml.count()
+
+# COMMAND ----------
+
 df_ml.printSchema()
 
 # COMMAND ----------
