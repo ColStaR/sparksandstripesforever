@@ -18,8 +18,6 @@ Flight delays: the bane of airline travelers everywhere. But can they be predict
 
 - [Final Report](https://github.com/ColStaR/sparksandstripesforever/blob/main/final_report/Allay_Airway_Delays_Final_Research_Paper.ipynb)
 
-Note: the Final Report was exported into HTML format, which does not render in GitHub's preview window. As such, it is advised to download and read the file in a web browser.
-
 - [Final Presentation](https://github.com/ColStaR/sparksandstripesforever/blob/main/final_report/Allay_Airway_Delays_Final_Presentation.pdf)
 
 For further information regarding the data pipeline, the models trained, or the results, please refer to the notebooks that were used in this project, which are stored in the "src" folders.
