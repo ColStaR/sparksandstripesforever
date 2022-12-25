@@ -2,7 +2,7 @@
 
 # Introduction
 
-This data engineering project, named "Allay Airway Delays", was undertaken by a project team named, "Sparks and Stripes Forever". This project was done over a 7 weeek period as the final project for W261, "Machine Learning At Scale" at UC Berkeley during the Summer 2022 term. The project was one of the few in the class to have received a perfect 100/100 score and direct acclaim from the professor.
+This data science and data engineering project, named "Allay Airway Delays", was undertaken by a project team named, "Sparks and Stripes Forever". This project was done over a 7 weeek period as the final project for W261, "Machine Learning At Scale" at UC Berkeley during the Summer 2022 term. In order to accomplish the sophisticated machine learning and modelling tasks required on such a large data set, the team utilized a number of tools, including Apache Spark, DataBricks, Azure blob storage, ML Lib, and Pandas, while also implementing custom solutions such as Blocking Time Series Cross Validation. The project was one of the few in the class to have received a perfect 100/100 score and direct acclaim from the instructor, Professor De Sola.
 
 # Project Team Members:
 - Nashat Cabral
